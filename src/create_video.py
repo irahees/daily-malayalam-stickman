@@ -21,6 +21,32 @@ TITLE = ""
 LINES: list[str] = []
 
 
+def open_with_retries(request: urllib.request.Request, timeout: int, label: str):
+    """Retry temporary Gemini rate-limit and service errors with exponential backoff."""
+    import time
+
+    retryable = {429, 500, 502, 503, 504}
+    for attempt in range(5):
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            details = error.read().decode("utf-8", errors="replace")
+            if error.code not in retryable or attempt == 4:
+                raise RuntimeError(
+                    f"{label} API HTTP {error.code} after {attempt + 1} attempt(s): {details[:1200]}"
+                ) from error
+            delay = 2 ** (attempt + 1)
+            print(f"{label} API temporarily returned HTTP {error.code}; retrying in {delay}s...")
+            time.sleep(delay)
+        except urllib.error.URLError as error:
+            if attempt == 4:
+                raise RuntimeError(f"Could not reach {label} API after 5 attempts: {error}") from error
+            delay = 2 ** (attempt + 1)
+            print(f"{label} API connection issue; retrying in {delay}s...")
+            time.sleep(delay)
+
+
+
 def generate_story() -> tuple[str, list[str]]:
     """Create a fresh, structured Malayalam mini-story with Gemini before narration."""
     api_key = os.getenv("GEMINI_API_KEY")
@@ -65,7 +91,7 @@ Do not add markdown fences or explanations.
         method="POST"
     )
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with open_with_retries(request, timeout=120, label="Gemini story") as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         details = error.read().decode("utf-8", errors="replace")
@@ -73,9 +99,8 @@ Do not add markdown fences or explanations.
     except urllib.error.URLError as error:
         raise RuntimeError(f"Could not reach Gemini story API: {error}") from error
 
-    try:
-        raw = result["output_text"]
-    except (KeyError, TypeError):
+    raw = result.get("output_text")
+    if not raw:
         try:
             raw = next(
                 part["text"]
@@ -87,7 +112,6 @@ Do not add markdown fences or explanations.
         except (StopIteration, AttributeError, TypeError, KeyError) as error:
             raise RuntimeError("Gemini Interactions API returned no story text.") from error
     try:
-        raw = result["candidates"][0]["content"]["parts"][0]["text"]
         story = json.loads(raw)
         title = str(story["title"]).strip()
         scenes = [str(item).strip() for item in story["scenes"]]
@@ -256,7 +280,7 @@ def create_voice(text: str, destination: Path) -> None:
         method="POST"
     )
     try:
-        with urllib.request.urlopen(request, timeout=240) as response:
+        with open_with_retries(request, timeout=240, label="Gemini TTS") as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         details = error.read().decode("utf-8", errors="replace")
