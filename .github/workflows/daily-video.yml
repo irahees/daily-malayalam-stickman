@@ -16,6 +16,7 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       GEMINI_TTS_VOICE: Kore
+      GEMINI_STORY_MODEL: gemini-2.5-flash
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -52,5 +53,6 @@ jobs:
           path: |
             output/daily_malayalam_stickman.mp4
             output/narration.wav
+            output/story.json
           if-no-files-found: error
           retention-days: 3
