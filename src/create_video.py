@@ -159,7 +159,7 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
     return rows
 
 
-def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int):
+def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int, output_frame: int):
     """Draw one animated 2D frame; the character stays visually consistent."""
     phase = (frame / max(scene_frames, 1)) * math.tau
     bob = int(5 * math.sin(phase * 2))
@@ -228,7 +228,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         y += 43
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    sky.save(FRAMES / f"frame_{frame:06d}.png", optimize=True)
+    sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=True)
 
 
 def create_voice(text: str, destination: Path) -> None:
@@ -310,7 +310,7 @@ def main():
     for scene_index, line in enumerate(LINES):
         scene_frames = base + (1 if scene_index < remainder else 0)
         for local_frame in range(scene_frames):
-            draw_scene_frame(scene_index, line, TITLE, local_frame, scene_frames)
+            draw_scene_frame(scene_index, line, TITLE, local_frame, scene_frames, frame_number)
             frame_number += 1
         print(f"Rendered animated scene {scene_index + 1}/{len(LINES)}")
 
