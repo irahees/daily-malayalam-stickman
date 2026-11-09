@@ -2,6 +2,12 @@ name: Stickman video test
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_youtube:
+        description: "Upload a Private test video to the connected YouTube channel"
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -45,6 +51,19 @@ jobs:
 
       - name: Render sample video with Gemini TTS
         run: python src/create_video.py
+
+      - name: Upload Private test video to YouTube
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_to_youtube
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$YOUTUBE_CLIENT_ID" ] || [ -z "$YOUTUBE_CLIENT_SECRET" ] || [ -z "$YOUTUBE_REFRESH_TOKEN" ]; then
+            echo "::error::Missing one or more YouTube OAuth secrets."
+            exit 1
+          fi
+          python src/upload_youtube.py
 
       - name: Upload test video and narration
         uses: actions/upload-artifact@v4
