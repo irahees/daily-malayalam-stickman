@@ -10,6 +10,10 @@ jobs:
   render-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_TTS_MODEL: gemini-3.8-flash-tts
+      GEMINI_TTS_VOICE: Kore
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -29,13 +33,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Render sample video
+      - name: Check Gemini API secret
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY is missing. Add it in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Render sample video with Gemini TTS
         run: python src/create_video.py
 
-      - name: Upload test video
+      - name: Upload test video and narration
         uses: actions/upload-artifact@v4
         with:
-          name: sample-stickman-video
-          path: output/daily_malayalam_stickman.mp4
+          name: gemini-tts-stickman-test
+          path: |
+            output/daily_malayalam_stickman.mp4
+            output/narration.wav
           if-no-files-found: error
           retention-days: 3
