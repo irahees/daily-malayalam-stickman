@@ -151,11 +151,22 @@ def create_voice(text: str, destination: Path) -> None:
     except urllib.error.URLError as error:
         raise RuntimeError(f"Could not reach Gemini TTS API: {error}") from error
 
+    # Interactions API returns generated audio inside steps[].content[].data.
+    # Keep a fallback for response variants that expose output_audio.data.
     audio_data = (result.get("output_audio") or {}).get("data")
     if not audio_data:
+        for step in result.get("steps", []):
+            for item in step.get("content", []):
+                if item.get("type") in (None, "audio") and item.get("data"):
+                    audio_data = item["data"]
+                    break
+            if audio_data:
+                break
+    if not audio_data:
         raise RuntimeError(
-            "Gemini TTS response did not contain output_audio.data: "
-            + json.dumps(result, ensure_ascii=False)[:1200]
+            "Gemini TTS response did not contain audio data in output_audio.data "
+            "or steps[].content[].data. Response keys: "
+            + ", ".join(sorted(result.keys()))
         )
 
     audio_bytes = base64.b64decode(audio_data)
