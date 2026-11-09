@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import asyncio
+import base64
+import json
 import os
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -13,7 +16,7 @@ FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 1080, 1920
 FPS = 30
 
-# Sample placeholder narration. Replace with generated story content in the next stage.
+# Temporary sample script. AI story generation is a separate next stage.
 TITLE = "കേരളത്തിലെ ഒരു രസകരമായ ദിവസം"
 LINES = [
     "ഒരു ദിവസം നമ്മുടെ നാട്ടിൽ ഒരു വിചിത്ര സംഭവം നടന്നു.",
@@ -21,6 +24,7 @@ LINES = [
     "ആദ്യം എല്ലാവരും പേടിച്ചു... പിന്നെ ചായ സൗജന്യമാണെന്ന് കേട്ട് തിരക്കായി.",
     "നിങ്ങളുടെ നാട്ടിൽ ഇങ്ങനെ സംഭവിച്ചാൽ എന്ത് ചെയ്യും?"
 ]
+
 
 def find_font() -> str | None:
     candidates = [
@@ -33,9 +37,11 @@ def find_font() -> str | None:
             return candidate
     return None
 
+
 def get_font(size: int):
     path = find_font()
     return ImageFont.truetype(path, size) if path else ImageFont.load_default()
+
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
     words = text.split()
@@ -52,6 +58,7 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
         rows.append(current)
     return rows
 
+
 def draw_scene(index: int, line: str, title: str):
     image = Image.new("RGB", (WIDTH, HEIGHT), (248, 244, 232))
     draw = ImageDraw.Draw(image)
@@ -62,7 +69,6 @@ def draw_scene(index: int, line: str, title: str):
     draw.polygon([(55, 920), (540, 650), (1025, 920)], fill=(125, 76, 57), outline=(65, 54, 46))
     draw.rectangle((420, 1050, 660, 1330), fill=(120, 82, 58), outline=(65, 54, 46), width=6)
 
-    # Character position varies slightly by scene; design remains consistent.
     x = 270 + (index % 2) * 520
     head_y = 1110
     draw.ellipse((x - 70, head_y - 70, x + 70, head_y + 70), outline=(25, 25, 25), width=13)
@@ -87,20 +93,81 @@ def draw_scene(index: int, line: str, title: str):
     FRAMES.mkdir(parents=True, exist_ok=True)
     image.save(FRAMES / f"scene_{index:03d}.png")
 
-async def create_voice(text: str, destination: Path):
-    """Create Malayalam narration; fail loudly instead of exporting a mute video."""
-    import edge_tts
 
-    # Microsoft lists Midhun (male) and Sobhana (female) Malayalam neural voices.
-    # Use Midhun as the default storyteller; TTS_VOICE can override it.
-    voice = os.getenv("TTS_VOICE", "ml-IN-MidhunNeural")
-    rate = os.getenv("TTS_RATE", "-5%")
-    communicate = edge_tts.Communicate(text, voice, rate=rate)
-    await communicate.save(str(destination))
-    if not destination.exists() or destination.stat().st_size < 1024:
-        raise RuntimeError("TTS returned an empty or unusually small audio file.")
-    print(f"Voice generated with {voice} at rate {rate}")
-    return True
+def create_voice(text: str, destination: Path) -> None:
+    """Generate Malayalam narration using the Gemini TTS Interactions REST API."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is missing. Add it as a GitHub Actions repository secret."
+        )
+
+    model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
+    voice = os.getenv("GEMINI_TTS_VOICE", "Kore")
+    style = os.getenv(
+        "GEMINI_TTS_STYLE",
+        "Speak natural, conversational Malayalam as a skilled Kerala storyteller. "
+        "Use clear Malayalam pronunciation, a warm human-like voice, lively but not childish "
+        "delivery, varied pacing, and natural pauses. Keep the spoken words exactly as written."
+    )
+
+    payload = {
+        "model": model,
+        "input": [{
+            "type": "user_input",
+            "content": [{
+                "type": "text",
+                "text": text,
+                "annotations": [{
+                    "type": "speech_metadata",
+                    "style": style
+                }]
+            }]
+        }],
+        "response_format": {"type": "audio"},
+        "generation_config": {
+            "speech_config": [{"voice": voice}]
+        }
+    }
+
+    request = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key
+        },
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=240) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Gemini TTS API returned HTTP {error.code}: {details[:1200]}"
+        ) from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"Could not reach Gemini TTS API: {error}") from error
+
+    audio_data = (result.get("output_audio") or {}).get("data")
+    if not audio_data:
+        raise RuntimeError(
+            "Gemini TTS response did not contain output_audio.data: "
+            + json.dumps(result, ensure_ascii=False)[:1200]
+        )
+
+    audio_bytes = base64.b64decode(audio_data)
+    if len(audio_bytes) < 1024 or not audio_bytes.startswith(b"RIFF"):
+        raise RuntimeError(
+            "Gemini TTS did not return a valid WAV file. "
+            "Check the selected model and API response format."
+        )
+
+    destination.write_bytes(audio_bytes)
+    print(f"Gemini TTS audio saved. Model={model}, voice={voice}, bytes={len(audio_bytes)}")
+
 
 def main():
     if not shutil.which("ffmpeg"):
@@ -113,8 +180,8 @@ def main():
         draw_scene(i, line, TITLE)
 
     narration = " ".join(LINES)
-    audio = OUT / "narration.mp3"
-    has_audio = asyncio.run(create_voice(narration, audio))
+    audio = OUT / "narration.wav"
+    create_voice(narration, audio)
 
     # Each still is shown for 4 seconds in this first test render.
     concat = OUT / "frames.txt"
@@ -132,16 +199,14 @@ def main():
     ], check=True)
 
     final_video = OUT / "daily_malayalam_stickman.mp4"
-    if has_audio:
-        subprocess.run([
-            "ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio),
-            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-            "-c:a", "aac", "-shortest", str(final_video)
-        ], check=True)
-    else:
-        raise RuntimeError("Narration audio was not generated; refusing to export a silent video.")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio),
+        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+        "-c:a", "aac", "-shortest", str(final_video)
+    ], check=True)
 
     print(f"Created: {final_video}")
+
 
 if __name__ == "__main__":
     main()
