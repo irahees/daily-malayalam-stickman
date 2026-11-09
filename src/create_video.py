@@ -88,14 +88,19 @@ def draw_scene(index: int, line: str, title: str):
     image.save(FRAMES / f"scene_{index:03d}.png")
 
 async def create_voice(text: str, destination: Path):
-    try:
-        import edge_tts
-        communicate = edge_tts.Communicate(text, "ml-IN-SobhanaNeural", rate="+0%")
-        await communicate.save(str(destination))
-        return True
-    except Exception as exc:
-        print(f"TTS unavailable: {exc}")
-        return False
+    """Create Malayalam narration; fail loudly instead of exporting a mute video."""
+    import edge_tts
+
+    # Microsoft lists Midhun (male) and Sobhana (female) Malayalam neural voices.
+    # Use Midhun as the default storyteller; TTS_VOICE can override it.
+    voice = os.getenv("TTS_VOICE", "ml-IN-MidhunNeural")
+    rate = os.getenv("TTS_RATE", "-5%")
+    communicate = edge_tts.Communicate(text, voice, rate=rate)
+    await communicate.save(str(destination))
+    if not destination.exists() or destination.stat().st_size < 1024:
+        raise RuntimeError("TTS returned an empty or unusually small audio file.")
+    print(f"Voice generated with {voice} at rate {rate}")
+    return True
 
 def main():
     if not shutil.which("ffmpeg"):
@@ -134,7 +139,7 @@ def main():
             "-c:a", "aac", "-shortest", str(final_video)
         ], check=True)
     else:
-        shutil.copy2(silent_video, final_video)
+        raise RuntimeError("Narration audio was not generated; refusing to export a silent video.")
 
     print(f"Created: {final_video}")
 
