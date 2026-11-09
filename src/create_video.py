@@ -26,7 +26,7 @@ def generate_story() -> tuple[str, list[str]]:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for AI story generation.")
-    model = os.getenv("GEMINI_STORY_MODEL", "gemini-2.5-flash")
+    model = os.getenv("GEMINI_STORY_MODEL", "gemini-3.8-flash")
     prompt = """
 Write ONE original, highly engaging Malayalam short story for a 45-60 second vertical stickman video.
 Audience: Malayalam-speaking teens and families in Kerala. Use natural spoken Kerala Malayalam,
@@ -40,23 +40,26 @@ Malayalam. Give a short Malayalam title. Return valid JSON only:
 {"title":"...","scenes":["...","...","...","...","...","..."]}
 Do not add markdown fences or explanations.
 """
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "title": {"type": "STRING"},
+            "scenes": {"type": "ARRAY", "items": {"type": "STRING"}}
+        },
+        "required": ["title", "scenes"]
+    }
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.95,
-            "responseMimeType": "application/json",
-            "responseSchema": {
-                "type": "OBJECT",
-                "properties": {
-                    "title": {"type": "STRING"},
-                    "scenes": {"type": "ARRAY", "items": {"type": "STRING"}}
-                },
-                "required": ["title", "scenes"]
-            }
+        "model": model,
+        "input": prompt,
+        "generation_config": {"temperature": 0.95},
+        "response_format": {
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": schema
         }
     }
     request = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST"
@@ -70,6 +73,19 @@ Do not add markdown fences or explanations.
     except urllib.error.URLError as error:
         raise RuntimeError(f"Could not reach Gemini story API: {error}") from error
 
+    try:
+        raw = result["output_text"]
+    except (KeyError, TypeError):
+        try:
+            raw = next(
+                part["text"]
+                for step in result.get("steps", [])
+                if step.get("type") == "model_output"
+                for part in step.get("content", [])
+                if part.get("type") == "text" and part.get("text")
+            )
+        except (StopIteration, AttributeError, TypeError, KeyError) as error:
+            raise RuntimeError("Gemini Interactions API returned no story text.") from error
     try:
         raw = result["candidates"][0]["content"]["parts"][0]["text"]
         story = json.loads(raw)
