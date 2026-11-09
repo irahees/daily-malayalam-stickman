@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -13,10 +14,9 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
 FRAMES = OUT / "frames"
-WIDTH, HEIGHT = 1080, 1920
-FPS = 30
+WIDTH, HEIGHT = 720, 1280
+FPS = 24
 
-# Temporary sample script. AI story generation is a separate next stage.
 TITLE = "കേരളത്തിലെ ഒരു രസകരമായ ദിവസം"
 LINES = [
     "ഒരു ദിവസം നമ്മുടെ നാട്ടിൽ ഒരു വിചിത്ര സംഭവം നടന്നു.",
@@ -59,48 +59,94 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
     return rows
 
 
-def draw_scene(index: int, line: str, title: str):
-    image = Image.new("RGB", (WIDTH, HEIGHT), (248, 244, 232))
-    draw = ImageDraw.Draw(image)
+def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int):
+    """Draw one animated 2D frame; the character stays visually consistent."""
+    t = frame / FPS
+    phase = (frame / max(scene_frames, 1)) * math.tau
+    bob = int(5 * math.sin(phase * 2))
+    walk = 18 * math.sin(phase * 2)
+    x = int(355 + 48 * math.sin(phase) + walk)
+    head_y = 710 + bob
 
-    # Simple Kerala-inspired setting and consistent stickman character.
-    draw.rectangle((0, 1320, WIDTH, HEIGHT), fill=(222, 232, 207))
-    draw.rectangle((90, 900, 990, 1330), fill=(222, 190, 145), outline=(65, 54, 46), width=8)
-    draw.polygon([(55, 920), (540, 650), (1025, 920)], fill=(125, 76, 57), outline=(65, 54, 46))
-    draw.rectangle((420, 1050, 660, 1330), fill=(120, 82, 58), outline=(65, 54, 46), width=6)
+    # Warm Kerala daylight with a gentle moving-cloud/parallax feel.
+    sky = Image.new("RGB", (WIDTH, HEIGHT), (157, 211, 226))
+    draw = ImageDraw.Draw(sky)
+    draw.rectangle((0, 850, WIDTH, HEIGHT), fill=(112, 165, 104))
+    cloud_x = int((frame * 1.1 + index * 95) % (WIDTH + 180)) - 90
+    for cx, cy, r in [(cloud_x, 145, 34), (cloud_x + 38, 132, 43), (cloud_x + 78, 150, 30)]:
+        draw.ellipse((cx-r, cy-r, cx+r, cy+r), fill=(246, 249, 245))
 
-    x = 270 + (index % 2) * 520
-    head_y = 1110
-    draw.ellipse((x - 70, head_y - 70, x + 70, head_y + 70), outline=(25, 25, 25), width=13)
-    draw.line((x, head_y + 70, x, head_y + 300), fill=(25, 25, 25), width=15)
-    draw.line((x, head_y + 140, x - 105, head_y + 230), fill=(25, 25, 25), width=13)
-    draw.line((x, head_y + 140, x + 105, head_y + 230), fill=(25, 25, 25), width=13)
-    draw.line((x, head_y + 300, x - 95, head_y + 455), fill=(25, 25, 25), width=14)
-    draw.line((x, head_y + 300, x + 95, head_y + 455), fill=(25, 25, 25), width=14)
+    # Kerala tiled-roof house / tea shop, with small scene-to-scene variation.
+    wall = (238, 205, 155) if index % 2 == 0 else (224, 190, 145)
+    draw.rectangle((70, 535, 650, 925), fill=wall, outline=(79, 59, 46), width=6)
+    draw.polygon([(35, 555), (360, 345), (685, 555)], fill=(125, 65, 48), outline=(79, 45, 38))
+    draw.rectangle((265, 700, 405, 925), fill=(108, 70, 49), outline=(65, 47, 38), width=5)
+    draw.rectangle((105, 650, 225, 770), fill=(145, 202, 218), outline=(75, 60, 48), width=5)
+    draw.line((165, 650, 165, 770), fill=(75, 60, 48), width=4)
+    draw.line((105, 710, 225, 710), fill=(75, 60, 48), width=4)
 
-    title_font = get_font(58)
-    body_font = get_font(54)
-    draw.rounded_rectangle((55, 75, 1025, 260), radius=35, fill=(255, 255, 255), outline=(30, 30, 30), width=5)
-    draw.text((90, 115), title, font=title_font, fill=(20, 20, 20), stroke_width=0)
+    # Coconut tree silhouette on the right.
+    draw.line((610, 830, 580, 440), fill=(105, 75, 49), width=15)
+    for angle in [-2.7, -2.1, -1.55, -0.95, -0.35]:
+        ex = 580 + int(180 * math.cos(angle))
+        ey = 440 + int(100 * math.sin(angle))
+        draw.line((580, 440, ex, ey), fill=(39, 111, 66), width=13)
 
-    draw.rounded_rectangle((55, 1580, 1025, 1845), radius=32, fill=(255, 255, 255), outline=(20, 20, 20), width=5)
-    rows = wrap_text(draw, line, body_font, 850)
-    y = 1625
+    # Ground and soft character shadow.
+    draw.ellipse((x-90, 1125, x+90, 1160), fill=(89, 132, 79))
+    ink = (28, 35, 42)
+    # Head, eyes and changing expression.
+    draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 224, 184), outline=ink, width=8)
+    draw.ellipse((x-18, head_y-10, x-8, head_y+2), fill=ink)
+    draw.ellipse((x+8, head_y-10, x+18, head_y+2), fill=ink)
+    if index == 1:
+        draw.arc((x-17, head_y+3, x+17, head_y+27), 5, 175, fill=ink, width=4)
+    else:
+        draw.arc((x-17, head_y+1, x+17, head_y+25), 5, 175, fill=ink, width=4)
+
+    # Torso and animated limbs.
+    shoulder_y = head_y + 52
+    hip_y = head_y + 230
+    draw.line((x, shoulder_y, x, hip_y), fill=ink, width=12)
+    arm_swing = int(38 * math.sin(phase * 2))
+    if index == 1:
+        # Point toward the talking shop sign.
+        draw.line((x, shoulder_y+35, x-62, shoulder_y+85), fill=ink, width=10)
+        draw.line((x, shoulder_y+35, x+112, shoulder_y-35+arm_swing), fill=ink, width=10)
+    else:
+        draw.line((x, shoulder_y+35, x-92, shoulder_y+115-arm_swing), fill=ink, width=10)
+        draw.line((x, shoulder_y+35, x+92, shoulder_y+115+arm_swing), fill=ink, width=10)
+    leg_swing = int(30 * math.sin(phase * 2))
+    draw.line((x, hip_y, x-62+leg_swing, hip_y+145), fill=ink, width=12)
+    draw.line((x, hip_y, x+62-leg_swing, hip_y+145), fill=ink, width=12)
+
+    # Signboard makes the tea-shop scene easier to read.
+    if index == 1:
+        draw.rounded_rectangle((420, 560, 625, 665), radius=12, fill=(246, 230, 179), outline=(67, 52, 39), width=5)
+        sign_font = get_font(25)
+        draw.text((440, 590), "ചായക്കട", font=sign_font, fill=(50, 42, 35))
+
+    # Editorial title and readable subtitle panel.
+    title_font = get_font(34)
+    body_font = get_font(31)
+    draw.rounded_rectangle((32, 35, 688, 125), radius=22, fill=(255, 255, 255), outline=(35, 43, 48), width=3)
+    draw.text((52, 57), title, font=title_font, fill=(25, 31, 35))
+    draw.rounded_rectangle((32, 1050, 688, 1238), radius=24, fill=(255, 255, 255), outline=(25, 32, 36), width=4)
+    rows = wrap_text(draw, line, body_font, 575)
+    y = 1085
     for row in rows[:3]:
-        draw.text((95, y), row, font=body_font, fill=(10, 10, 10), stroke_width=0)
-        y += 72
+        draw.text((62, y), row, font=body_font, fill=(15, 20, 24))
+        y += 43
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    image.save(FRAMES / f"scene_{index:03d}.png")
+    sky.save(FRAMES / f"frame_{frame:06d}.png", optimize=True)
 
 
 def create_voice(text: str, destination: Path) -> None:
     """Generate Malayalam narration using the Gemini TTS Interactions REST API."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is missing. Add it as a GitHub Actions repository secret."
-        )
+        raise RuntimeError("GEMINI_API_KEY is missing. Add it as a GitHub Actions repository secret.")
 
     model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
     voice = os.getenv("GEMINI_TTS_VOICE", "Kore")
@@ -110,49 +156,30 @@ def create_voice(text: str, destination: Path) -> None:
         "Use clear Malayalam pronunciation, a warm human-like voice, lively but not childish "
         "delivery, varied pacing, and natural pauses. Keep the spoken words exactly as written."
     )
-
     payload = {
         "model": model,
-        "input": [{
-            "type": "user_input",
-            "content": [{
-                "type": "text",
-                "text": text,
-                "annotations": [{
-                    "type": "speech_metadata",
-                    "style": style
-                }]
-            }]
-        }],
+        "input": [{"type": "user_input", "content": [{
+            "type": "text", "text": text,
+            "annotations": [{"type": "speech_metadata", "style": style}]
+        }]}],
         "response_format": {"type": "audio"},
-        "generation_config": {
-            "speech_config": [{"voice": voice}]
-        }
+        "generation_config": {"speech_config": [{"voice": voice}]}
     }
-
     request = urllib.request.Request(
         "https://generativelanguage.googleapis.com/v1beta/interactions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key
-        },
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST"
     )
-
     try:
         with urllib.request.urlopen(request, timeout=240) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Gemini TTS API returned HTTP {error.code}: {details[:1200]}"
-        ) from error
+        raise RuntimeError(f"Gemini TTS API returned HTTP {error.code}: {details[:1200]}") from error
     except urllib.error.URLError as error:
         raise RuntimeError(f"Could not reach Gemini TTS API: {error}") from error
 
-    # Interactions API returns generated audio inside steps[].content[].data.
-    # Keep a fallback for response variants that expose output_audio.data.
     audio_data = (result.get("output_audio") or {}).get("data")
     if not audio_data:
         for step in result.get("steps", []):
@@ -163,60 +190,61 @@ def create_voice(text: str, destination: Path) -> None:
             if audio_data:
                 break
     if not audio_data:
-        raise RuntimeError(
-            "Gemini TTS response did not contain audio data in output_audio.data "
-            "or steps[].content[].data. Response keys: "
-            + ", ".join(sorted(result.keys()))
-        )
-
+        raise RuntimeError("Gemini TTS response did not contain audio data.")
     audio_bytes = base64.b64decode(audio_data)
     if len(audio_bytes) < 1024 or not audio_bytes.startswith(b"RIFF"):
-        raise RuntimeError(
-            "Gemini TTS did not return a valid WAV file. "
-            "Check the selected model and API response format."
-        )
-
+        raise RuntimeError("Gemini TTS did not return a valid WAV file.")
     destination.write_bytes(audio_bytes)
     print(f"Gemini TTS audio saved. Model={model}, voice={voice}, bytes={len(audio_bytes)}")
 
 
+def probe_duration(audio: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+        check=True, capture_output=True, text=True
+    )
+    return max(float(result.stdout.strip()), 1.0)
+
+
 def main():
-    if not shutil.which("ffmpeg"):
-        raise SystemExit("FFmpeg is required. Install it and retry.")
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        raise SystemExit("FFmpeg and ffprobe are required.")
     if FRAMES.exists():
         shutil.rmtree(FRAMES)
     OUT.mkdir(exist_ok=True)
-
-    for i, line in enumerate(LINES):
-        draw_scene(i, line, TITLE)
 
     narration = " ".join(LINES)
     audio = OUT / "narration.wav"
     create_voice(narration, audio)
 
-    # Each still is shown for 4 seconds in this first test render.
-    concat = OUT / "frames.txt"
-    with concat.open("w", encoding="utf-8") as handle:
-        for i in range(len(LINES)):
-            handle.write(f"file '{(FRAMES / f'scene_{i:03d}.png').as_posix()}'\n")
-            handle.write("duration 4\n")
-        handle.write(f"file '{(FRAMES / f'scene_{len(LINES)-1:03d}.png').as_posix()}'\n")
+    # Render a real animated frame sequence, timed to the generated narration.
+    duration = probe_duration(audio)
+    total_frames = max(int(math.ceil(duration * FPS)), FPS * len(LINES))
+    base, remainder = divmod(total_frames, len(LINES))
+    frame_number = 0
+    for scene_index, line in enumerate(LINES):
+        scene_frames = base + (1 if scene_index < remainder else 0)
+        for local_frame in range(scene_frames):
+            draw_scene_frame(scene_index, line, TITLE, local_frame, scene_frames)
+            frame_number += 1
+        print(f"Rendered animated scene {scene_index + 1}/{len(LINES)}")
 
     silent_video = OUT / "silent.mp4"
     subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-vf", f"scale={WIDTH}:{HEIGHT},fps={FPS},format=yuv420p",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(silent_video)
+        "ffmpeg", "-y", "-framerate", str(FPS), "-i",
+        str(FRAMES / "frame_%06d.png"),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p", str(silent_video)
     ], check=True)
 
     final_video = OUT / "daily_malayalam_stickman.mp4"
     subprocess.run([
         "ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-        "-c:a", "aac", "-shortest", str(final_video)
+        "-c:a", "aac", "-b:a", "192k", "-shortest", str(final_video)
     ], check=True)
-
-    print(f"Created: {final_video}")
+    print(f"Created animated video: {final_video} ({frame_number} frames at {FPS} fps)")
 
 
 if __name__ == "__main__":
