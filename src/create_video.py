@@ -17,17 +17,22 @@ FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
 FPS = 24
 
-TITLE = "കേരളത്തിലെ ഒരു രസകരമായ ദിവസം"
+TITLE = "അടഞ്ഞ ലൈബ്രറിയിലെ രഹസ്യം"
 LINES = [
-    "ഒരു ദിവസം നമ്മുടെ നാട്ടിൽ ഒരു വിചിത്ര സംഭവം നടന്നു.",
-    "ചായക്കടയിലെ ബോർഡ് തന്നെ ആളുകളോട് സംസാരിക്കാൻ തുടങ്ങി.",
-    "ആദ്യം എല്ലാവരും പേടിച്ചു... പിന്നെ ചായ സൗജന്യമാണെന്ന് കേട്ട് തിരക്കായി.",
-    "നിങ്ങളുടെ നാട്ടിൽ ഇങ്ങനെ സംഭവിച്ചാൽ എന്ത് ചെയ്യും?"
+    "ഗ്രാമത്തിലെ അടഞ്ഞ ലൈബ്രറിയിൽ... എല്ലാ രാത്രിയും കൃത്യം ഒൻപത് മണിക്ക് വെളിച്ചം തെളിയും.",
+    "വാതിൽ പൂട്ടിയിരിക്കും. പക്ഷേ ഓരോ രാവിലെയും ഒരു പുസ്തകം മാത്രം സ്ഥാനം മാറിയിരിക്കും.",
+    "കാവൽക്കാരൻ ക്യാമറ വെച്ചു. ദൃശ്യത്തിൽ കണ്ടത് ഒരു നിഴൽ... മുഖം ആരും കണ്ടില്ല.",
+    "അടുത്ത രാത്രി ഒരു കുട്ടി ഒളിച്ചുനിന്നു. അകത്ത് കയറിയത് പഴയ ലൈബ്രേറിയനായിരുന്നു.",
+    "വിരമിച്ച ദിവസം ലൈബ്രറി അടഞ്ഞു. അതിനുശേഷം കീറിയ പുസ്തകങ്ങൾ നന്നാക്കാൻ അദ്ദേഹം രാത്രിയിൽ വരികയായിരുന്നു.",
+    "പിറ്റേന്ന് വാതിലിൽ ഒരു കുറിപ്പ്: സാർ, ലൈബ്രറി വീണ്ടും തുറക്കണം... ഞങ്ങൾ കാത്തിരിക്കുന്നു."
 ]
 
 
-def find_font() -> str | None:
-    candidates = [
+def find_font(bold: bool = False) -> str | None:
+    candidates = []
+    if bold:
+        candidates += ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf"]
+    candidates += [
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam[wght].ttf",
         "/usr/share/fonts/truetype/NotoSansMalayalam-Regular.ttf",
@@ -38,8 +43,8 @@ def find_font() -> str | None:
     return None
 
 
-def get_font(size: int):
-    path = find_font()
+def get_font(size: int, bold: bool = False):
+    path = find_font(bold)
     return ImageFont.truetype(path, size) if path else ImageFont.load_default()
 
 
@@ -126,16 +131,19 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         sign_font = get_font(25)
         draw.text((440, 590), "ചായക്കട", font=sign_font, fill=(50, 42, 35))
 
-    # Editorial title and readable subtitle panel.
-    title_font = get_font(34)
-    body_font = get_font(31)
-    draw.rounded_rectangle((32, 35, 688, 125), radius=22, fill=(255, 255, 255), outline=(35, 43, 48), width=3)
-    draw.text((52, 57), title, font=title_font, fill=(25, 31, 35))
-    draw.rounded_rectangle((32, 1050, 688, 1238), radius=24, fill=(255, 255, 255), outline=(25, 32, 36), width=4)
+    # Bold Malayalam typography with a dark caption panel and scene-colour accents.
+    title_font = get_font(31, bold=True)
+    body_font = get_font(30, bold=True)
+    draw.rounded_rectangle((28, 34, 692, 125), radius=22, fill=(22, 34, 47), outline=(247, 190, 82), width=3)
+    draw.text((49, 57), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(22, 34, 47))
+    accent_colors = [(255, 202, 82), (102, 220, 231), (255, 132, 119), (160, 232, 164), (255, 202, 82), (190, 166, 255)]
+    accent = accent_colors[index % len(accent_colors)]
+    draw.rounded_rectangle((28, 1040, 692, 1238), radius=25, fill=(18, 27, 39), outline=accent, width=4)
+    draw.rounded_rectangle((52, 1060, 112, 1068), radius=4, fill=accent)
     rows = wrap_text(draw, line, body_font, 575)
-    y = 1085
+    y = 1090
     for row in rows[:3]:
-        draw.text((62, y), row, font=body_font, fill=(15, 20, 24))
+        draw.text((58, y), row, font=body_font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(10, 15, 23))
         y += 43
 
     FRAMES.mkdir(parents=True, exist_ok=True)
