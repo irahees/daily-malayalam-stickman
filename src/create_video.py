@@ -17,15 +17,75 @@ FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
 FPS = 24
 
-TITLE = "അടഞ്ഞ ലൈബ്രറിയിലെ രഹസ്യം"
-LINES = [
-    "ഗ്രാമത്തിലെ അടഞ്ഞ ലൈബ്രറിയിൽ... എല്ലാ രാത്രിയും കൃത്യം ഒൻപത് മണിക്ക് വെളിച്ചം തെളിയും.",
-    "വാതിൽ പൂട്ടിയിരിക്കും. പക്ഷേ ഓരോ രാവിലെയും ഒരു പുസ്തകം മാത്രം സ്ഥാനം മാറിയിരിക്കും.",
-    "കാവൽക്കാരൻ ക്യാമറ വെച്ചു. ദൃശ്യത്തിൽ കണ്ടത് ഒരു നിഴൽ... മുഖം ആരും കണ്ടില്ല.",
-    "അടുത്ത രാത്രി ഒരു കുട്ടി ഒളിച്ചുനിന്നു. അകത്ത് കയറിയത് പഴയ ലൈബ്രേറിയനായിരുന്നു.",
-    "വിരമിച്ച ദിവസം ലൈബ്രറി അടഞ്ഞു. അതിനുശേഷം കീറിയ പുസ്തകങ്ങൾ നന്നാക്കാൻ അദ്ദേഹം രാത്രിയിൽ വരികയായിരുന്നു.",
-    "പിറ്റേന്ന് വാതിലിൽ ഒരു കുറിപ്പ്: സാർ, ലൈബ്രറി വീണ്ടും തുറക്കണം... ഞങ്ങൾ കാത്തിരിക്കുന്നു."
-]
+TITLE = ""
+LINES: list[str] = []
+
+
+def generate_story() -> tuple[str, list[str]]:
+    """Create a fresh, structured Malayalam mini-story with Gemini before narration."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is required for AI story generation.")
+    model = os.getenv("GEMINI_STORY_MODEL", "gemini-2.5-flash")
+    prompt = """
+Write ONE original, highly engaging Malayalam short story for a 45-60 second vertical stickman video.
+Audience: Malayalam-speaking teens and families in Kerala. Use natural spoken Kerala Malayalam,
+not textbook Malayalam. Genre: clever mystery/thriller with emotional payoff OR grounded comedy
+with a genuinely clever twist. Avoid childish nonsense, random magic, copied plots, filler,
+repeated jokes, and predictable endings. The opening must create curiosity in the first sentence.
+Every event must have a clear cause and effect. Plant a clue before the reveal. End with a satisfying
+twist or emotional reveal, then a short audience question. Create exactly 6 scene narration lines.
+Each line should be concise enough for subtitles and spoken narration. Make all dialogue/story text
+Malayalam. Give a short Malayalam title. Return valid JSON only:
+{"title":"...","scenes":["...","...","...","...","...","..."]}
+Do not add markdown fences or explanations.
+"""
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.95,
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "title": {"type": "STRING"},
+                    "scenes": {"type": "ARRAY", "items": {"type": "STRING"}}
+                },
+                "required": ["title", "scenes"]
+            }
+        }
+    }
+    request = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Gemini story API HTTP {error.code}: {details[:1200]}") from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"Could not reach Gemini story API: {error}") from error
+
+    try:
+        raw = result["candidates"][0]["content"]["parts"][0]["text"]
+        story = json.loads(raw)
+        title = str(story["title"]).strip()
+        scenes = [str(item).strip() for item in story["scenes"]]
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise RuntimeError("Gemini returned an invalid story JSON structure.") from error
+    if not title or len(scenes) != 6 or any(not line for line in scenes):
+        raise RuntimeError("Story validation failed: expected a title and exactly 6 non-empty scenes.")
+    if any(len(line) > 240 for line in scenes):
+        raise RuntimeError("Story validation failed: each scene must be concise (240 characters max).")
+    story_file = OUT / "story.json"
+    story_file.write_text(json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Generated fresh Malayalam story: {title}")
+    return title, scenes
+
 
 
 def find_font(bold: bool = False) -> str | None:
@@ -222,6 +282,8 @@ def main():
         shutil.rmtree(FRAMES)
     OUT.mkdir(exist_ok=True)
 
+    global TITLE, LINES
+    TITLE, LINES = generate_story()
     narration = " ".join(LINES)
     audio = OUT / "narration.wav"
     create_voice(narration, audio)
