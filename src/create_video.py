@@ -5,7 +5,9 @@ import json
 import math
 import os
 import shutil
+import socket
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -22,29 +24,29 @@ LINES: list[str] = []
 
 
 def open_with_retries(request: urllib.request.Request, timeout: int, label: str):
-    """Retry temporary Gemini rate-limit and service errors with exponential backoff."""
-    import time
-
+    """Retry transient Gemini overloads, connection failures, and socket timeouts."""
     retryable = {429, 500, 502, 503, 504}
-    for attempt in range(5):
+    max_attempts = 7
+    for attempt in range(max_attempts):
         try:
             return urllib.request.urlopen(request, timeout=timeout)
         except urllib.error.HTTPError as error:
             details = error.read().decode("utf-8", errors="replace")
-            if error.code not in retryable or attempt == 4:
+            if error.code not in retryable or attempt == max_attempts - 1:
                 raise RuntimeError(
                     f"{label} API HTTP {error.code} after {attempt + 1} attempt(s): {details[:1200]}"
                 ) from error
-            delay = 2 ** (attempt + 1)
+            delay = min(60, 2 ** (attempt + 1))
             print(f"{label} API temporarily returned HTTP {error.code}; retrying in {delay}s...")
             time.sleep(delay)
-        except urllib.error.URLError as error:
-            if attempt == 4:
-                raise RuntimeError(f"Could not reach {label} API after 5 attempts: {error}") from error
-            delay = 2 ** (attempt + 1)
-            print(f"{label} API connection issue; retrying in {delay}s...")
+        except (urllib.error.URLError, TimeoutError, socket.timeout) as error:
+            if attempt == max_attempts - 1:
+                raise RuntimeError(
+                    f"{label} API connection timed out or failed after {max_attempts} attempts: {error}"
+                ) from error
+            delay = min(60, 2 ** (attempt + 1))
+            print(f"{label} API connection/timeout issue; retrying in {delay}s...")
             time.sleep(delay)
-
 
 
 def generate_story() -> tuple[str, list[str]]:
@@ -90,14 +92,8 @@ Do not add markdown fences or explanations.
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST"
     )
-    try:
-        with open_with_retries(request, timeout=120, label="Gemini story") as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini story API HTTP {error.code}: {details[:1200]}") from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(f"Could not reach Gemini story API: {error}") from error
+    with open_with_retries(request, timeout=300, label="Gemini story") as response:
+        result = json.loads(response.read().decode("utf-8"))
 
     raw = result.get("output_text")
     if not raw:
@@ -125,7 +121,6 @@ Do not add markdown fences or explanations.
     story_file.write_text(json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Generated fresh Malayalam story: {title}")
     return title, scenes
-
 
 
 def find_font(bold: bool = False) -> str | None:
@@ -166,14 +161,12 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
 
 def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int):
     """Draw one animated 2D frame; the character stays visually consistent."""
-    t = frame / FPS
     phase = (frame / max(scene_frames, 1)) * math.tau
     bob = int(5 * math.sin(phase * 2))
     walk = 18 * math.sin(phase * 2)
     x = int(355 + 48 * math.sin(phase) + walk)
     head_y = 710 + bob
 
-    # Warm Kerala daylight with a gentle moving-cloud/parallax feel.
     sky = Image.new("RGB", (WIDTH, HEIGHT), (157, 211, 226))
     draw = ImageDraw.Draw(sky)
     draw.rectangle((0, 850, WIDTH, HEIGHT), fill=(112, 165, 104))
@@ -181,7 +174,6 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     for cx, cy, r in [(cloud_x, 145, 34), (cloud_x + 38, 132, 43), (cloud_x + 78, 150, 30)]:
         draw.ellipse((cx-r, cy-r, cx+r, cy+r), fill=(246, 249, 245))
 
-    # Kerala tiled-roof house / tea shop, with small scene-to-scene variation.
     wall = (238, 205, 155) if index % 2 == 0 else (224, 190, 145)
     draw.rectangle((70, 535, 650, 925), fill=wall, outline=(79, 59, 46), width=6)
     draw.polygon([(35, 555), (360, 345), (685, 555)], fill=(125, 65, 48), outline=(79, 45, 38))
@@ -190,32 +182,24 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     draw.line((165, 650, 165, 770), fill=(75, 60, 48), width=4)
     draw.line((105, 710, 225, 710), fill=(75, 60, 48), width=4)
 
-    # Coconut tree silhouette on the right.
     draw.line((610, 830, 580, 440), fill=(105, 75, 49), width=15)
     for angle in [-2.7, -2.1, -1.55, -0.95, -0.35]:
         ex = 580 + int(180 * math.cos(angle))
         ey = 440 + int(100 * math.sin(angle))
         draw.line((580, 440, ex, ey), fill=(39, 111, 66), width=13)
 
-    # Ground and soft character shadow.
     draw.ellipse((x-90, 1125, x+90, 1160), fill=(89, 132, 79))
     ink = (28, 35, 42)
-    # Head, eyes and changing expression.
     draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 224, 184), outline=ink, width=8)
     draw.ellipse((x-18, head_y-10, x-8, head_y+2), fill=ink)
     draw.ellipse((x+8, head_y-10, x+18, head_y+2), fill=ink)
-    if index == 1:
-        draw.arc((x-17, head_y+3, x+17, head_y+27), 5, 175, fill=ink, width=4)
-    else:
-        draw.arc((x-17, head_y+1, x+17, head_y+25), 5, 175, fill=ink, width=4)
+    draw.arc((x-17, head_y+1, x+17, head_y+25), 5, 175, fill=ink, width=4)
 
-    # Torso and animated limbs.
     shoulder_y = head_y + 52
     hip_y = head_y + 230
     draw.line((x, shoulder_y, x, hip_y), fill=ink, width=12)
     arm_swing = int(38 * math.sin(phase * 2))
     if index == 1:
-        # Point toward the talking shop sign.
         draw.line((x, shoulder_y+35, x-62, shoulder_y+85), fill=ink, width=10)
         draw.line((x, shoulder_y+35, x+112, shoulder_y-35+arm_swing), fill=ink, width=10)
     else:
@@ -225,13 +209,10 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     draw.line((x, hip_y, x-62+leg_swing, hip_y+145), fill=ink, width=12)
     draw.line((x, hip_y, x+62-leg_swing, hip_y+145), fill=ink, width=12)
 
-    # Signboard makes the tea-shop scene easier to read.
     if index == 1:
         draw.rounded_rectangle((420, 560, 625, 665), radius=12, fill=(246, 230, 179), outline=(67, 52, 39), width=5)
-        sign_font = get_font(25)
-        draw.text((440, 590), "ചായക്കട", font=sign_font, fill=(50, 42, 35))
+        draw.text((440, 590), "ചായക്കട", font=get_font(25), fill=(50, 42, 35))
 
-    # Bold Malayalam typography with a dark caption panel and scene-colour accents.
     title_font = get_font(31, bold=True)
     body_font = get_font(30, bold=True)
     draw.rounded_rectangle((28, 34, 692, 125), radius=22, fill=(22, 34, 47), outline=(247, 190, 82), width=3)
@@ -279,14 +260,8 @@ def create_voice(text: str, destination: Path) -> None:
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST"
     )
-    try:
-        with open_with_retries(request, timeout=240, label="Gemini TTS") as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini TTS API returned HTTP {error.code}: {details[:1200]}") from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(f"Could not reach Gemini TTS API: {error}") from error
+    with open_with_retries(request, timeout=300, label="Gemini TTS") as response:
+        result = json.loads(response.read().decode("utf-8"))
 
     audio_data = (result.get("output_audio") or {}).get("data")
     if not audio_data:
@@ -328,7 +303,6 @@ def main():
     audio = OUT / "narration.wav"
     create_voice(narration, audio)
 
-    # Render a real animated frame sequence, timed to the generated narration.
     duration = probe_duration(audio)
     total_frames = max(int(math.ceil(duration * FPS)), FPS * len(LINES))
     base, remainder = divmod(total_frames, len(LINES))
