@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,6 +223,7 @@ def find_font(bold: bool = False) -> str | None:
     return None
 
 
+@lru_cache(maxsize=32)
 def get_font(size: int, bold: bool = False):
     path = find_font(bold)
     return ImageFont.truetype(path, size) if path else ImageFont.load_default()
@@ -270,7 +272,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     sky = Image.new("RGB", (WIDTH, HEIGHT), scenes["sky"])
     draw = ImageDraw.Draw(sky)
     # Atmospheric sky glow and horizon.
-    for radius in range(260, 0, -8):
+    for radius in range(260, 0, -16):
         alpha = (260 - radius) / 260
         color = tuple(int(scenes["sky"][c] * (1-alpha) + (255, 205, 143)[c] * alpha * 0.30) for c in range(3))
         draw.ellipse((470-radius, 300-radius, 470+radius, 300+radius), fill=color)
@@ -328,7 +330,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         draw.polygon([(35-camera, 580), (160-camera, 475), (285-camera, 580)], fill=scenes["roof"])
 
     # Floating dust/firefly particles add depth and motion between scene cuts.
-    for particle in range(14):
+    for particle in range(9):
         px = int((particle * 67 + frame * (1.2 + (particle % 3) * 0.35)) % WIDTH)
         py = int(280 + (particle * 83 + frame * (0.45 + (particle % 2) * 0.2)) % 560)
         radius = 2 + (particle % 3)
@@ -393,7 +395,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=True)
+    sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=False)
 
 def create_voice(text: str, destination: Path) -> None:
     """Generate Malayalam narration using the Gemini TTS Interactions REST API."""
@@ -491,22 +493,16 @@ def main():
             frame_number += 1
         print(f"Rendered scene {scene_index + 1}/{len(LINES)}: {scene_duration:.1f}s")
 
-    silent_video = OUT / "silent.mp4"
+    final_video = OUT / "daily_malayalam_stickman.mp4"
+    # Encode the image sequence with narration in one pass (avoid a second full video encode).
     subprocess.run([
         "ffmpeg", "-y", "-framerate", str(FPS), "-i",
-        str(FRAMES / "frame_%06d.png"),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
-        "-pix_fmt", "yuv420p", str(silent_video)
-    ], check=True)
-
-    final_video = OUT / "daily_malayalam_stickman.mp4"
-    subprocess.run([
-        "ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio),
+        str(FRAMES / "frame_%06d.png"), "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", "scale=1080:1920:flags=lanczos,setsar=1",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
-        "-c:a", "aac", "-b:a", "192k", "-shortest",
-        "-movflags", "+faststart", str(final_video)
+        "-vf", "scale=1080:1920:flags=bicubic,setsar=1",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+        "-shortest", "-movflags", "+faststart", str(final_video)
     ], check=True)
     print(f"Created 1080x1920 animated video: {final_video} ({frame_number} frames at {FPS} fps)")
 
