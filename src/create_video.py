@@ -121,9 +121,13 @@ Do not add markdown fences or explanations.
             print(f"Story generated using model: {model_name}")
             break
         except RuntimeError as error:
-            if "HTTP 503" not in str(error) or model_name == models_to_try[-1]:
+            message = str(error)
+            # A 429 can mean a model-specific daily quota is exhausted, not a
+            # short burst limit. Do not waste retries on that model: try the
+            # next configured model immediately.
+            if not any(code in message for code in ("HTTP 503", "HTTP 429")) or model_name == models_to_try[-1]:
                 raise
-            print(f"{model_name} is overloaded; trying the next fallback model...")
+            print(f"{model_name} is unavailable or rate-limited; trying the next fallback model...")
     if result is None:
         raise RuntimeError("Gemini story generation failed: no model returned a response.")
 
