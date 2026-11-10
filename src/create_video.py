@@ -36,8 +36,16 @@ def open_with_retries(request: urllib.request.Request, timeout: int, label: str)
                 raise RuntimeError(
                     f"{label} API HTTP {error.code} after {attempt + 1} attempt(s): {details[:1200]}"
                 ) from error
-            delay = min(60, 2 ** (attempt + 1))
-            print(f"{label} API temporarily returned HTTP {error.code}; retrying in {delay}s...")
+            delay = min(90, 2 ** (attempt + 1))
+            if error.code == 429:
+                retry_header = error.headers.get("Retry-After")
+                if retry_header and retry_header.isdigit():
+                    delay = max(delay, min(90, int(retry_header)))
+                else:
+                    match = __import__("re").search(r"retry in (\\d+)s", details, __import__("re").I)
+                    if match:
+                        delay = max(delay, min(90, int(match.group(1))))
+            print(f"{label} API temporarily returned HTTP {error.code}; respecting rate limit and retrying in {delay}s...")
             time.sleep(delay)
         except (urllib.error.URLError, TimeoutError, socket.timeout) as error:
             if attempt == max_attempts - 1:
@@ -187,11 +195,14 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     """Render a cinematic scene with a location change, parallax, character acting and subtitles."""
     phase = (frame / max(scene_frames, 1)) * math.tau
     progress = frame / max(scene_frames - 1, 1)
-    camera = int(10 * math.sin(phase * 0.5))
-    bob = int(5 * math.sin(phase * 2))
-    walk = 24 * math.sin(phase * 2)
-    x = int(350 + 38 * math.sin(phase) + walk)
-    head_y = 690 + bob
+    # Smoother cinematic camera drift and a more expressive, continuously moving actor.
+    camera = int(16 * math.sin(phase * 0.45) + 7 * math.sin(phase * 0.9))
+    bob = int(8 * math.sin(phase * 2) + 2 * math.sin(phase * 4))
+    walk = 31 * math.sin(phase * 1.65)
+    x = int(350 + 46 * math.sin(phase * 0.72) + walk)
+    head_y = 680 + bob
+    body_lean = int(8 * math.sin(phase * 1.1))
+    action_pulse = (0.5 + 0.5 * math.sin(phase * 1.5))
     ink = (28, 35, 42)
 
     # Six distinct locations create a clear visual progression through the story.
@@ -264,8 +275,17 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         draw.rectangle((60-camera, 570, 260-camera, 830), fill=scenes["wall"], outline=(62, 52, 48), width=5)
         draw.polygon([(35-camera, 580), (160-camera, 475), (285-camera, 580)], fill=scenes["roof"])
 
+    # Floating dust/firefly particles add depth and motion between scene cuts.
+    for particle in range(14):
+        px = int((particle * 67 + frame * (1.2 + (particle % 3) * 0.35)) % WIDTH)
+        py = int(280 + (particle * 83 + frame * (0.45 + (particle % 2) * 0.2)) % 560)
+        radius = 2 + (particle % 3)
+        glow = int(125 + 90 * (0.5 + 0.5 * math.sin(phase + particle)))
+        draw.ellipse((px-radius, py-radius, px+radius, py+radius), fill=(glow, min(245, glow+22), 170))
+
     # Character shadow and expressive stick-figure actor with a consistent costume.
-    draw.ellipse((x-75, 1110, x+85, 1150), fill=(35, 53, 47))
+    shadow_width = int(72 + 14 * action_pulse)
+    draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1150), fill=(35, 53, 47))
     draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 222, 181), outline=ink, width=8)
     # Hair and eyebrows.
     draw.arc((x-47, head_y-57, x+47, head_y+15), 185, 350, fill=(45, 35, 30), width=12)
@@ -279,8 +299,8 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
 
     shoulder_y = head_y + 52
     hip_y = head_y + 225
-    draw.line((x, shoulder_y, x, hip_y), fill=(27, 42, 59), width=18)
-    draw.line((x, shoulder_y+15, x, hip_y-5), fill=(61, 147, 181), width=11)
+    draw.line((x, shoulder_y, x+body_lean, hip_y), fill=(27, 42, 59), width=18)
+    draw.line((x, shoulder_y+15, x+body_lean, hip_y-5), fill=(61, 147, 181), width=11)
     arm = int(42 * math.sin(phase * 2))
     if index in (1, 5):
         draw.line((x, shoulder_y+28, x-62, shoulder_y+100+arm), fill=ink, width=11)
@@ -291,9 +311,14 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     else:
         draw.line((x, shoulder_y+28, x-88, shoulder_y+110-arm), fill=ink, width=11)
         draw.line((x, shoulder_y+28, x+88, shoulder_y+110+arm), fill=ink, width=11)
-    leg = int(34 * math.sin(phase * 2))
-    draw.line((x, hip_y, x-62+leg, hip_y+145), fill=ink, width=13)
-    draw.line((x, hip_y, x+62-leg, hip_y+145), fill=ink, width=13)
+    leg = int(42 * math.sin(phase * 1.65))
+    stride_lift = int(13 * max(0, math.sin(phase * 1.65)))
+    stride_lift_r = int(13 * max(0, -math.sin(phase * 1.65)))
+    draw.line((x+body_lean, hip_y, x-62+leg, hip_y+145-stride_lift), fill=ink, width=13)
+    draw.line((x+body_lean, hip_y, x+62-leg, hip_y+145-stride_lift_r), fill=ink, width=13)
+    # Brief action accents make important beats read clearly even on a phone screen.
+    if index in (0, 3, 5) and action_pulse > 0.82:
+        draw.arc((x-78, head_y-84, x+78, head_y+72), 205, 330, fill=(255, 219, 132), width=4)
     # Small story cue prop to make actions more readable.
     if index in (1, 4):
         draw.rounded_rectangle((x+65, head_y+115, x+112, head_y+178), radius=8, fill=(239, 187, 77), outline=ink, width=3)
