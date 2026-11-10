@@ -362,36 +362,52 @@ def main():
 
     global TITLE, LINES
     TITLE, LINES = generate_story()
-    narration = " ".join(LINES)
-    audio = OUT / "narration.wav"
-    create_voice(narration, audio)
-
-    duration = probe_duration(audio)
-    total_frames = max(int(math.ceil(duration * FPS)), FPS * len(LINES))
-    base, remainder = divmod(total_frames, len(LINES))
-    frame_number = 0
+    # Generate each scene's Malayalam narration separately so visual cuts and subtitles
+    # follow the actual spoken duration instead of splitting one long recording evenly.
+    scene_audio = []
     for scene_index, line in enumerate(LINES):
-        scene_frames = base + (1 if scene_index < remainder else 0)
+        clip = OUT / f"narration_scene_{scene_index + 1:02d}.wav"
+        create_voice(line, clip)
+        scene_audio.append(clip)
+
+    concat_list = OUT / "audio_concat.txt"
+    concat_list.write_text(
+        "".join(f"file '{clip.as_posix()}'\\n" for clip in scene_audio),
+        encoding="utf-8"
+    )
+    audio = OUT / "narration.wav"
+    subprocess.run([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
+        "-c:a", "pcm_s16le", str(audio)
+    ], check=True)
+
+    frame_number = 0
+    for scene_index, (line, clip) in enumerate(zip(LINES, scene_audio)):
+        scene_duration = probe_duration(clip)
+        scene_frames = max(int(math.ceil(scene_duration * FPS)), FPS * 2)
         for local_frame in range(scene_frames):
             draw_scene_frame(scene_index, line, TITLE, local_frame, scene_frames, frame_number)
             frame_number += 1
-        print(f"Rendered animated scene {scene_index + 1}/{len(LINES)}")
+        print(f"Rendered scene {scene_index + 1}/{len(LINES)}: {scene_duration:.1f}s")
 
     silent_video = OUT / "silent.mp4"
     subprocess.run([
         "ffmpeg", "-y", "-framerate", str(FPS), "-i",
         str(FRAMES / "frame_%06d.png"),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
         "-pix_fmt", "yuv420p", str(silent_video)
     ], check=True)
 
     final_video = OUT / "daily_malayalam_stickman.mp4"
     subprocess.run([
         "ffmpeg", "-y", "-i", str(silent_video), "-i", str(audio),
-        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-        "-c:a", "aac", "-b:a", "192k", "-shortest", str(final_video)
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-vf", "scale=1080:1920:flags=lanczos,setsar=1",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+        "-c:a", "aac", "-b:a", "192k", "-shortest",
+        "-movflags", "+faststart", str(final_video)
     ], check=True)
-    print(f"Created animated video: {final_video} ({frame_number} frames at {FPS} fps)")
+    print(f"Created 1080x1920 animated video: {final_video} ({frame_number} frames at {FPS} fps)")
 
 
 if __name__ == "__main__":
