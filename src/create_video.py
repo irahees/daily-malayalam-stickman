@@ -160,76 +160,139 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
 
 
 def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int, output_frame: int):
-    """Draw one animated 2D frame; the character stays visually consistent."""
+    """Render a cinematic scene with a location change, parallax, character acting and subtitles."""
     phase = (frame / max(scene_frames, 1)) * math.tau
+    progress = frame / max(scene_frames - 1, 1)
+    camera = int(10 * math.sin(phase * 0.5))
     bob = int(5 * math.sin(phase * 2))
-    walk = 18 * math.sin(phase * 2)
-    x = int(355 + 48 * math.sin(phase) + walk)
-    head_y = 710 + bob
-
-    sky = Image.new("RGB", (WIDTH, HEIGHT), (157, 211, 226))
-    draw = ImageDraw.Draw(sky)
-    draw.rectangle((0, 850, WIDTH, HEIGHT), fill=(112, 165, 104))
-    cloud_x = int((frame * 1.1 + index * 95) % (WIDTH + 180)) - 90
-    for cx, cy, r in [(cloud_x, 145, 34), (cloud_x + 38, 132, 43), (cloud_x + 78, 150, 30)]:
-        draw.ellipse((cx-r, cy-r, cx+r, cy+r), fill=(246, 249, 245))
-
-    wall = (238, 205, 155) if index % 2 == 0 else (224, 190, 145)
-    draw.rectangle((70, 535, 650, 925), fill=wall, outline=(79, 59, 46), width=6)
-    draw.polygon([(35, 555), (360, 345), (685, 555)], fill=(125, 65, 48), outline=(79, 45, 38))
-    draw.rectangle((265, 700, 405, 925), fill=(108, 70, 49), outline=(65, 47, 38), width=5)
-    draw.rectangle((105, 650, 225, 770), fill=(145, 202, 218), outline=(75, 60, 48), width=5)
-    draw.line((165, 650, 165, 770), fill=(75, 60, 48), width=4)
-    draw.line((105, 710, 225, 710), fill=(75, 60, 48), width=4)
-
-    draw.line((610, 830, 580, 440), fill=(105, 75, 49), width=15)
-    for angle in [-2.7, -2.1, -1.55, -0.95, -0.35]:
-        ex = 580 + int(180 * math.cos(angle))
-        ey = 440 + int(100 * math.sin(angle))
-        draw.line((580, 440, ex, ey), fill=(39, 111, 66), width=13)
-
-    draw.ellipse((x-90, 1125, x+90, 1160), fill=(89, 132, 79))
+    walk = 24 * math.sin(phase * 2)
+    x = int(350 + 38 * math.sin(phase) + walk)
+    head_y = 690 + bob
     ink = (28, 35, 42)
-    draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 224, 184), outline=ink, width=8)
-    draw.ellipse((x-18, head_y-10, x-8, head_y+2), fill=ink)
-    draw.ellipse((x+8, head_y-10, x+18, head_y+2), fill=ink)
-    draw.arc((x-17, head_y+1, x+17, head_y+25), 5, 175, fill=ink, width=4)
+
+    # Six distinct locations create a clear visual progression through the story.
+    scenes = [
+        {"sky": (26, 39, 70), "ground": (43, 67, 65), "wall": (79, 87, 111), "roof": (42, 48, 70), "name": "NIGHT"},
+        {"sky": (247, 177, 113), "ground": (116, 158, 95), "wall": (239, 202, 145), "roof": (130, 65, 48), "name": "TEA SHOP"},
+        {"sky": (132, 196, 215), "ground": (77, 143, 88), "wall": (224, 205, 166), "roof": (113, 65, 46), "name": "VILLAGE ROAD"},
+        {"sky": (75, 104, 145), "ground": (45, 80, 78), "wall": (102, 117, 133), "roof": (48, 57, 72), "name": "BUS STOP"},
+        {"sky": (246, 166, 107), "ground": (83, 132, 80), "wall": (229, 188, 135), "roof": (117, 61, 46), "name": "RIVERSIDE"},
+        {"sky": (31, 37, 64), "ground": (39, 70, 61), "wall": (78, 83, 108), "roof": (39, 44, 65), "name": "THE REVEAL"},
+    ][index % 6]
+
+    sky = Image.new("RGB", (WIDTH, HEIGHT), scenes["sky"])
+    draw = ImageDraw.Draw(sky)
+    # Atmospheric sky glow and horizon.
+    for radius in range(260, 0, -8):
+        alpha = (260 - radius) / 260
+        color = tuple(int(scenes["sky"][c] * (1-alpha) + (255, 205, 143)[c] * alpha * 0.30) for c in range(3))
+        draw.ellipse((470-radius, 300-radius, 470+radius, 300+radius), fill=color)
+    draw.rectangle((0, 835, WIDTH, HEIGHT), fill=scenes["ground"])
+
+    # Parallax palms and distant hills.
+    draw.polygon([(0, 830), (0, 735), (110, 690), (230, 760), (360, 700), (520, 765), (720, 700), (720, 850)], fill=tuple(max(0, c-18) for c in scenes["ground"]))
+    for palm_x in (-20, 680):
+        sway = int(12 * math.sin(phase + palm_x))
+        draw.line((palm_x, 850, palm_x+22, 430), fill=(91, 66, 47), width=14)
+        crown = (palm_x+22, 430)
+        for a in (-2.8, -2.25, -1.7, -1.15, -0.6):
+            ex = crown[0] + int(135 * math.cos(a) + sway)
+            ey = crown[1] + int(78 * math.sin(a))
+            draw.line((crown[0], crown[1], ex, ey), fill=(35, 105, 66), width=12)
+
+    # Location-specific architecture and props.
+    if index in (0, 5):
+        draw.rectangle((65-camera, 510, 655-camera, 925), fill=scenes["wall"], outline=(55, 48, 51), width=6)
+        draw.polygon([(28-camera, 530), (360-camera, 325), (692-camera, 530)], fill=scenes["roof"], outline=(48, 42, 46))
+        draw.rectangle((270-camera, 690, 410-camera, 925), fill=(85, 57, 47), outline=(42, 35, 34), width=5)
+        draw.rectangle((105-camera, 650, 220-camera, 760), fill=(115, 171, 193), outline=(50, 46, 44), width=5)
+        draw.line((162-camera, 650, 162-camera, 760), fill=(50, 46, 44), width=4)
+        draw.line((105-camera, 705, 220-camera, 705), fill=(50, 46, 44), width=4)
+    elif index == 1:
+        draw.rectangle((55-camera, 545, 665-camera, 925), fill=scenes["wall"], outline=(65, 51, 42), width=6)
+        draw.polygon([(25-camera, 550), (360-camera, 355), (695-camera, 550)], fill=scenes["roof"])
+        draw.rectangle((95-camera, 725, 625-camera, 780), fill=(99, 58, 40))
+        draw.rectangle((145-camera, 620, 220-camera, 740), fill=(104, 67, 48))
+        draw.rounded_rectangle((420-camera, 580, 625-camera, 670), radius=12, fill=(248, 227, 172), outline=(67, 52, 39), width=4)
+        draw.text((442-camera, 606), "ചായക്കട", font=get_font(25), fill=(50, 42, 35))
+        # Steam from a tea glass.
+        for s in range(3):
+            sx = 510 + s*14 + int(4*math.sin(phase*2+s))
+            draw.arc((sx, 520, sx+18, 570), 70, 260, fill=(245, 238, 220), width=3)
+    elif index == 2:
+        draw.line((0, 820, 720, 820), fill=(210, 190, 151), width=90)
+        draw.rectangle((55-camera, 580, 245-camera, 810), fill=(229, 191, 143), outline=(80, 62, 47), width=5)
+        draw.polygon([(35-camera, 590), (150-camera, 490), (265-camera, 590)], fill=(126, 65, 48))
+        draw.rectangle((480-camera, 640, 650-camera, 820), fill=(189, 205, 175), outline=(65, 74, 56), width=5)
+        draw.ellipse((525-camera, 700, 565-camera, 740), fill=(244, 212, 131))
+    elif index == 3:
+        draw.rectangle((65-camera, 670, 655-camera, 710), fill=(57, 67, 78))
+        draw.rectangle((90-camera, 705, 120-camera, 925), fill=(48, 52, 60))
+        draw.rectangle((600-camera, 705, 630-camera, 925), fill=(48, 52, 60))
+        draw.rounded_rectangle((150-camera, 560, 570-camera, 665), radius=16, fill=(46, 59, 76), outline=(220, 193, 146), width=4)
+        draw.text((190-camera, 592), "BUS STOP", font=get_font(30, True), fill=(255, 238, 190))
+        draw.line((0, 850, 720, 850), fill=(185, 173, 147), width=7)
+    else:
+        draw.polygon([(0, 810), (170, 770), (360, 830), (540, 760), (720, 810), (720, 930), (0, 930)], fill=(47, 109, 112))
+        for ripple in range(5):
+            rx = int((frame*3 + ripple*145) % 760)
+            draw.arc((rx-45, 825+ripple*13, rx+45, 845+ripple*13), 0, 180, fill=(161, 209, 195), width=3)
+        draw.rectangle((60-camera, 570, 260-camera, 830), fill=scenes["wall"], outline=(62, 52, 48), width=5)
+        draw.polygon([(35-camera, 580), (160-camera, 475), (285-camera, 580)], fill=scenes["roof"])
+
+    # Character shadow and expressive stick-figure actor with a consistent costume.
+    draw.ellipse((x-75, 1110, x+85, 1150), fill=(35, 53, 47))
+    draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 222, 181), outline=ink, width=8)
+    # Hair and eyebrows.
+    draw.arc((x-47, head_y-57, x+47, head_y+15), 185, 350, fill=(45, 35, 30), width=12)
+    eye_y = head_y - 7
+    draw.ellipse((x-19, eye_y, x-9, eye_y+12), fill=ink)
+    draw.ellipse((x+9, eye_y, x+19, eye_y+12), fill=ink)
+    if index in (0, 5):
+        draw.arc((x-18, head_y+9, x+18, head_y+36), 195, 345, fill=ink, width=4)
+    else:
+        draw.arc((x-17, head_y+3, x+17, head_y+27), 5, 175, fill=ink, width=4)
 
     shoulder_y = head_y + 52
-    hip_y = head_y + 230
-    draw.line((x, shoulder_y, x, hip_y), fill=ink, width=12)
-    arm_swing = int(38 * math.sin(phase * 2))
-    if index == 1:
-        draw.line((x, shoulder_y+35, x-62, shoulder_y+85), fill=ink, width=10)
-        draw.line((x, shoulder_y+35, x+112, shoulder_y-35+arm_swing), fill=ink, width=10)
+    hip_y = head_y + 225
+    draw.line((x, shoulder_y, x, hip_y), fill=(27, 42, 59), width=18)
+    draw.line((x, shoulder_y+15, x, hip_y-5), fill=(61, 147, 181), width=11)
+    arm = int(42 * math.sin(phase * 2))
+    if index in (1, 5):
+        draw.line((x, shoulder_y+28, x-62, shoulder_y+100+arm), fill=ink, width=11)
+        draw.line((x, shoulder_y+28, x+100, shoulder_y-40-arm), fill=ink, width=11)
+    elif index == 3:
+        draw.line((x, shoulder_y+28, x-75, shoulder_y+100-arm), fill=ink, width=11)
+        draw.line((x, shoulder_y+28, x+78, shoulder_y+95+arm), fill=ink, width=11)
     else:
-        draw.line((x, shoulder_y+35, x-92, shoulder_y+115-arm_swing), fill=ink, width=10)
-        draw.line((x, shoulder_y+35, x+92, shoulder_y+115+arm_swing), fill=ink, width=10)
-    leg_swing = int(30 * math.sin(phase * 2))
-    draw.line((x, hip_y, x-62+leg_swing, hip_y+145), fill=ink, width=12)
-    draw.line((x, hip_y, x+62-leg_swing, hip_y+145), fill=ink, width=12)
+        draw.line((x, shoulder_y+28, x-88, shoulder_y+110-arm), fill=ink, width=11)
+        draw.line((x, shoulder_y+28, x+88, shoulder_y+110+arm), fill=ink, width=11)
+    leg = int(34 * math.sin(phase * 2))
+    draw.line((x, hip_y, x-62+leg, hip_y+145), fill=ink, width=13)
+    draw.line((x, hip_y, x+62-leg, hip_y+145), fill=ink, width=13)
+    # Small story cue prop to make actions more readable.
+    if index in (1, 4):
+        draw.rounded_rectangle((x+65, head_y+115, x+112, head_y+178), radius=8, fill=(239, 187, 77), outline=ink, width=3)
 
-    if index == 1:
-        draw.rounded_rectangle((420, 560, 625, 665), radius=12, fill=(246, 230, 179), outline=(67, 52, 39), width=5)
-        draw.text((440, 590), "ചായക്കട", font=get_font(25), fill=(50, 42, 35))
-
-    title_font = get_font(31, bold=True)
-    body_font = get_font(30, bold=True)
-    draw.rounded_rectangle((28, 34, 692, 125), radius=22, fill=(22, 34, 47), outline=(247, 190, 82), width=3)
-    draw.text((49, 57), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(22, 34, 47))
+    # Cinematic scene marker, title and high-contrast Malayalam subtitles.
+    title_font = get_font(30, bold=True)
+    body_font = get_font(31, bold=True)
+    draw.rounded_rectangle((28, 30, 692, 124), radius=22, fill=(17, 27, 43), outline=(246, 190, 87), width=3)
+    draw.text((48, 54), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(17, 27, 43))
+    draw.rounded_rectangle((515, 142, 680, 190), radius=14, fill=(17, 27, 43))
+    draw.text((535, 151), scenes["name"], font=get_font(18, True), fill=(255, 213, 125))
     accent_colors = [(255, 202, 82), (102, 220, 231), (255, 132, 119), (160, 232, 164), (255, 202, 82), (190, 166, 255)]
     accent = accent_colors[index % len(accent_colors)]
-    draw.rounded_rectangle((28, 1040, 692, 1238), radius=25, fill=(18, 27, 39), outline=accent, width=4)
-    draw.rounded_rectangle((52, 1060, 112, 1068), radius=4, fill=accent)
+    draw.rounded_rectangle((24, 1038, 696, 1238), radius=25, fill=(15, 24, 37), outline=accent, width=4)
+    draw.rounded_rectangle((52, 1058, 112, 1067), radius=4, fill=accent)
     rows = wrap_text(draw, line, body_font, 575)
-    y = 1090
+    y = 1087
     for row in rows[:3]:
         draw.text((58, y), row, font=body_font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(10, 15, 23))
-        y += 43
+        y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
     sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=True)
-
 
 def create_voice(text: str, destination: Path) -> None:
     """Generate Malayalam narration using the Gemini TTS Interactions REST API."""
