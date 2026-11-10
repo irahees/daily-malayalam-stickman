@@ -1,6 +1,9 @@
-name: Stickman video test
+name: Daily Malayalam Stickman Creator
 
 on:
+  schedule:
+    # 07:00 IST every day (01:30 UTC)
+    - cron: '30 1 * * *'
   workflow_dispatch:
     inputs:
       upload_to_youtube:
@@ -74,4 +77,4 @@ jobs:
             output/narration.wav
             output/story.json
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
