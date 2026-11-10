@@ -88,6 +88,7 @@ def generate_story_with_groq(prompt: str) -> dict:
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "User-Agent": "DailyMalayalamStickman/1.0 (GitHub Actions)",
         },
         method="POST",
     )
