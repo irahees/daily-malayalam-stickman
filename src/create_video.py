@@ -57,6 +57,51 @@ def open_with_retries(request: urllib.request.Request, timeout: int, label: str)
             time.sleep(delay)
 
 
+def generate_story_with_groq(prompt: str) -> dict:
+    """Generate a story with Groq only when all configured Gemini story models are rate-limited."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Gemini story quota is exhausted and GROQ_API_KEY is not configured. "
+            "Add GROQ_API_KEY in GitHub Settings > Secrets and variables > Actions."
+        )
+    model = os.getenv("GROQ_STORY_MODEL", "openai/gpt-oss-20b")
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write original, natural spoken Kerala Malayalam short stories. "
+                    "Follow the user's exact output format and return valid JSON only."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.95,
+        "max_completion_tokens": 1800,
+        "response_format": {"type": "json_object"},
+    }
+    request = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with open_with_retries(request, timeout=180, label=f"Groq story ({model})") as response:
+        result = json.loads(response.read().decode("utf-8"))
+    try:
+        raw = result["choices"][0]["message"]["content"]
+        story = json.loads(raw)
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise RuntimeError("Groq returned an invalid story JSON response.") from error
+    print(f"Story generated using Groq fallback model: {model}")
+    return {"output_text": json.dumps(story, ensure_ascii=False)}
+
+
 def generate_story() -> tuple[str, list[str]]:
     """Create a fresh, structured Malayalam mini-story with Gemini before narration."""
     api_key = os.getenv("GEMINI_API_KEY")
@@ -122,14 +167,16 @@ Do not add markdown fences or explanations.
             break
         except RuntimeError as error:
             message = str(error)
-            # A 429 can mean a model-specific daily quota is exhausted, not a
-            # short burst limit. Do not waste retries on that model: try the
-            # next configured model immediately.
-            if not any(code in message for code in ("HTTP 503", "HTTP 429")) or model_name == models_to_try[-1]:
+            # A 429 can mean a model-specific daily quota is exhausted. Move
+            # through Gemini alternatives, then use Groq only for story text.
+            if not any(code in message for code in ("HTTP 503", "HTTP 429")):
                 raise
-            print(f"{model_name} is unavailable or rate-limited; trying the next fallback model...")
+            if model_name == models_to_try[-1]:
+                print("All configured Gemini story models are rate-limited; trying Groq fallback...")
+                break
+            print(f"{model_name} is unavailable or rate-limited; trying the next Gemini fallback...")
     if result is None:
-        raise RuntimeError("Gemini story generation failed: no model returned a response.")
+        result = generate_story_with_groq(prompt)
 
     raw = result.get("output_text")
     if not raw:
