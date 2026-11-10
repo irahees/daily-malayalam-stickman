@@ -26,6 +26,8 @@ jobs:
       GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       GEMINI_TTS_VOICE: Kore
       GEMINI_STORY_MODEL: gemini-3.8-flash
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_STORY_MODEL: openai/gpt-oss-20b
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
