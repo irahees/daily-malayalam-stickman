@@ -397,8 +397,8 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     FRAMES.mkdir(parents=True, exist_ok=True)
     sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=False)
 
-def create_voice(text: str, destination: Path) -> None:
-    """Generate Malayalam narration using the Gemini TTS Interactions REST API."""
+def create_voice_gemini(text: str, destination: Path) -> None:
+    """Generate Malayalam narration using the primary Gemini TTS provider."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing. Add it as a GitHub Actions repository secret.")
@@ -445,6 +445,70 @@ def create_voice(text: str, destination: Path) -> None:
         raise RuntimeError("Gemini TTS did not return a valid WAV file.")
     destination.write_bytes(audio_bytes)
     print(f"Gemini TTS audio saved. Model={model}, voice={voice}, bytes={len(audio_bytes)}")
+
+
+def create_voice_elevenlabs(text: str, destination: Path) -> None:
+    """Fallback Malayalam narration using ElevenLabs Eleven v3."""
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID")
+    if not api_key or not voice_id:
+        raise RuntimeError(
+            "ElevenLabs fallback is not configured. Add ELEVENLABS_API_KEY and "
+            "ELEVENLABS_VOICE_ID in GitHub Actions repository secrets."
+        )
+
+    model = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_v3")
+    payload = {
+        "text": text,
+        "model_id": model,
+        "language_code": "ml"
+    }
+    request = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "xi-api-key": api_key,
+            "Accept": "audio/mpeg"
+        },
+        method="POST"
+    )
+    try:
+        with open_with_retries(request, timeout=240, label="ElevenLabs TTS") as response:
+            audio_bytes = response.read()
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"ElevenLabs TTS HTTP {error.code}: {details[:1000]}") from error
+
+    if len(audio_bytes) < 1024:
+        raise RuntimeError("ElevenLabs returned an empty or invalid audio response.")
+
+    mp3_path = destination.with_suffix(".elevenlabs.mp3")
+    mp3_path.write_bytes(audio_bytes)
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(mp3_path), "-acodec", "pcm_s16le", "-ar", "44100", str(destination)],
+            check=True, capture_output=True, text=True
+        )
+    finally:
+        mp3_path.unlink(missing_ok=True)
+
+    if not destination.exists() or destination.stat().st_size < 1024:
+        raise RuntimeError("ElevenLabs audio could not be converted to WAV.")
+    print(f"ElevenLabs fallback audio saved. Model={model}, bytes={destination.stat().st_size}")
+
+
+def create_voice(text: str, destination: Path) -> None:
+    """Try Gemini first; use ElevenLabs only if the primary TTS call fails."""
+    try:
+        create_voice_gemini(text, destination)
+    except Exception as primary_error:
+        if not os.getenv("ELEVENLABS_API_KEY") or not os.getenv("ELEVENLABS_VOICE_ID"):
+            raise RuntimeError(
+                f"Primary Gemini TTS failed and ElevenLabs fallback is not configured: {primary_error}"
+            ) from primary_error
+        print(f"Gemini TTS failed ({primary_error}); switching to ElevenLabs secondary provider...")
+        create_voice_elevenlabs(text, destination)
 
 
 def probe_duration(audio: Path) -> float:
