@@ -26,7 +26,7 @@ LINES: list[str] = []
 def open_with_retries(request: urllib.request.Request, timeout: int, label: str):
     """Retry transient Gemini overloads, connection failures, and socket timeouts."""
     retryable = {429, 500, 502, 503, 504}
-    max_attempts = 7
+    max_attempts = 4
     for attempt in range(max_attempts):
         try:
             return urllib.request.urlopen(request, timeout=timeout)
@@ -86,14 +86,38 @@ Do not add markdown fences or explanations.
             "schema": schema
         }
     }
-    request = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/interactions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST"
-    )
-    with open_with_retries(request, timeout=300, label="Gemini story") as response:
-        result = json.loads(response.read().decode("utf-8"))
+
+    # If the primary Flash model is temporarily overloaded (HTTP 503), try
+    # stable fallback models instead of failing the whole daily render.
+    fallback_models = [
+        item.strip()
+        for item in os.getenv(
+            "GEMINI_STORY_FALLBACK_MODELS",
+            "gemini-3.7-flash,gemini-3.5-flash"
+        ).split(",")
+        if item.strip() and item.strip() != model
+    ]
+    result = None
+    models_to_try = [model, *fallback_models]
+    for model_name in models_to_try:
+        payload["model"] = model_name
+        request = urllib.request.Request(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            method="POST"
+        )
+        try:
+            with open_with_retries(request, timeout=300, label=f"Gemini story ({model_name})") as response:
+                result = json.loads(response.read().decode("utf-8"))
+            print(f"Story generated using model: {model_name}")
+            break
+        except RuntimeError as error:
+            if "HTTP 503" not in str(error) or model_name == models_to_try[-1]:
+                raise
+            print(f"{model_name} is overloaded; trying the next fallback model...")
+    if result is None:
+        raise RuntimeError("Gemini story generation failed: no model returned a response.")
 
     raw = result.get("output_text")
     if not raw:
