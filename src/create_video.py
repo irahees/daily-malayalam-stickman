@@ -396,7 +396,7 @@ def main():
 
     concat_list = OUT / "audio_concat.txt"
     concat_list.write_text(
-        "".join(f"file '{clip.as_posix()}'\\n" for clip in scene_audio),
+        "".join(f"file '{clip.as_posix()}'\n" for clip in scene_audio),
         encoding="utf-8"
     )
     audio = OUT / "narration.wav"
