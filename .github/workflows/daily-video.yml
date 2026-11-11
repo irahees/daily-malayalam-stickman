@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: daily-malayalam-video
@@ -73,6 +73,24 @@ jobs:
         run: |
           test -s output/daily_malayalam_stickman.mp4
           ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/daily_malayalam_stickman.mp4
+
+
+      - name: Publish MP4 as a public GitHub Release asset
+        id: public-video
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="daily-video-${GITHUB_RUN_ID}"
+          TITLE="Daily Malayalam Short — $(TZ=Asia/Kolkata date +'%Y-%m-%d')"
+          gh release create "$TAG" output/daily_malayalam_stickman.mp4 \
+            --title "$TITLE" \
+            --notes "Automatically generated Malayalam short. Review before publishing."
+          ASSET_URL="https://github.com/${GH_REPO}/releases/download/${TAG}/daily_malayalam_stickman.mp4"
+          echo "url=$ASSET_URL" >> "$GITHUB_OUTPUT"
+          echo "Public video URL created: $ASSET_URL"
 
       - name: Save generated video artifact
         uses: actions/upload-artifact@v4
