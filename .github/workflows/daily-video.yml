@@ -25,8 +25,8 @@ jobs:
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ELEVENLABS_TTS_MODEL: eleven_v3
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      GROQ_STORY_MODEL: openai/gpt-oss-20b
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_STORY_MODEL: gpt-4o-mini
       PYTHONUNBUFFERED: "1"
     steps:
       - name: Check out repository
@@ -47,9 +47,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Check Groq and ElevenLabs secrets
+      - name: Check OpenAI and ElevenLabs secrets
         run: |
-          test -n "$GROQ_API_KEY" || { echo "::error::GROQ_API_KEY is missing."; exit 1; }
+          test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY is missing. Add it in GitHub Actions secrets."; exit 1; }
           test -n "$ELEVENLABS_API_KEY" || { echo "::error::ELEVENLABS_API_KEY is missing."; exit 1; }
           test -n "$ELEVENLABS_VOICE_ID" || { echo "::error::ELEVENLABS_VOICE_ID is missing."; exit 1; }
 
@@ -65,7 +65,7 @@ jobs:
           opencode run --standalone --model opencode/gpt-5.6-sol "Act as the creative director for a Malayalam YouTube Shorts channel for Kerala viewers. Choose one highly compelling, original 45-60 second video topic with a curiosity gap. Prefer surprising Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts. Do not present hypotheticals as real events. Do not invent current trends, statistics, dates, or factual claims. Return ONLY valid JSON with exactly these string fields: topic, angle, hook. Write all three values in natural Malayalam. The hook must be a short question suitable for the first 1.2 seconds. No markdown." > output/opencode_brief.json
           python -c "import json; d=json.load(open('output/opencode_brief.json', encoding='utf-8')); assert all(isinstance(d.get(k), str) and d[k].strip() for k in ('topic','angle','hook')); print('OpenCode brief validated:', d['topic'])"
 
-      - name: Render Malayalam video with OpenCode direction, Groq and ElevenLabs
+      - name: Render Malayalam video with OpenCode direction, OpenAI and ElevenLabs
         run: python src/create_video.py
 
       - name: Upload Private test video to YouTube
@@ -84,7 +84,7 @@ jobs:
       - name: Upload test video and narration
         uses: actions/upload-artifact@v4
         with:
-          name: groq-elevenlabs-stickman-video
+          name: openai-elevenlabs-stickman-video
           path: |
             output/daily_malayalam_stickman.mp4
             output/narration.wav
