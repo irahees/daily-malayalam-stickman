@@ -20,7 +20,7 @@ permissions:
 jobs:
   render-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_TTS_MODEL: gemini-3.8-flash-tts
@@ -31,6 +31,7 @@ jobs:
       GEMINI_STORY_MODEL: gemini-3.8-flash
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_STORY_MODEL: openai/gpt-oss-20b
+      PYTHONUNBUFFERED: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
