@@ -92,6 +92,20 @@ jobs:
           echo "url=$ASSET_URL" >> "$GITHUB_OUTPUT"
           echo "Public video URL created: $ASSET_URL"
 
+      - name: Verify Buffer connection and prepare social drafts
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          PUBLIC_VIDEO_URL: ${{ steps.public-video.outputs.url }}
+          BUFFER_MODE: ${{ github.event_name == 'push' && 'verify' || 'draft' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUFFER_API_KEY:-}" ]; then
+            echo "::error::BUFFER_API_KEY is missing from GitHub Actions repository secrets."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error --head "$PUBLIC_VIDEO_URL" >/dev/null
+          python src/buffer_publish.py "$BUFFER_MODE"
+
       - name: Save generated video artifact
         uses: actions/upload-artifact@v4
         with:
