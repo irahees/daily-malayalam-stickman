@@ -105,11 +105,7 @@ def generate_story_with_groq(prompt: str) -> dict:
 
 
 def generate_story() -> tuple[str, list[str]]:
-    """Create a fresh, structured Malayalam mini-story with Gemini before narration."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required for AI story generation.")
-    model = os.getenv("GEMINI_STORY_MODEL", "gemini-3.8-flash")
+    """Generate a structured Malayalam story with Gemini first and Groq as fallback."""
     prompt = """
 Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
 Prioritize curiosity-driven topics, not only comedy stories. Rotate naturally between:
@@ -146,59 +142,26 @@ Do not add markdown fences or explanations.
         },
         "required": ["title", "scenes"]
     }
-    payload = {
-        "model": model,
-        "input": prompt,
-        "generation_config": {"temperature": 0.95},
-        "response_format": {
-            "type": "text",
-            "mime_type": "application/json",
-            "schema": schema
-        }
-    }
 
-    # If the primary Flash model is temporarily overloaded (HTTP 503), try
-    # stable fallback models instead of failing the whole daily render.
-    fallback_models = [
-        item.strip()
-        for item in os.getenv(
-            "GEMINI_STORY_FALLBACK_MODELS",
-            "gemini-3.7-flash,gemini-3.5-flash"
-        ).split(",")
-        if item.strip() and item.strip() != model
-    ]
-    result = None
-    models_to_try = [model, *fallback_models]
-    for model_name in models_to_try:
-        payload["model"] = model_name
-        request = urllib.request.Request(
-            "https://generativelanguage.googleapis.com/v1beta/interactions",
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-            method="POST"
-        )
+    def validate_story(raw: str, provider: str) -> tuple[str, list[str]]:
         try:
-            with open_with_retries(request, timeout=300, label=f"Gemini story ({model_name})") as response:
-                result = json.loads(response.read().decode("utf-8"))
-            print(f"Story generated using model: {model_name}")
-            break
-        except RuntimeError as error:
-            message = str(error)
-            # A 429 can mean a model-specific daily quota is exhausted. Move
-            # through Gemini alternatives, then use Groq only for story text.
-            if not any(code in message for code in ("HTTP 503", "HTTP 429")):
-                raise
-            if model_name == models_to_try[-1]:
-                print("All configured Gemini story models are rate-limited; trying Groq fallback...")
-                break
-            print(f"{model_name} is unavailable or rate-limited; trying the next Gemini fallback...")
-    if result is None:
-        result = generate_story_with_groq(prompt)
+            story = json.loads(raw)
+            title = str(story["title"]).strip()
+            scenes = [str(item).strip() for item in story["scenes"]]
+        except (KeyError, IndexError, TypeError, ValueError) as error:
+            raise RuntimeError(f"{provider} returned invalid story JSON.") from error
+        if not title or len(scenes) != 6 or any(not line for line in scenes):
+            raise RuntimeError(f"{provider} story validation failed: expected a title and exactly 6 non-empty scenes.")
+        if any(len(line) > 240 for line in scenes):
+            raise RuntimeError(f"{provider} story validation failed: each scene must be 240 characters max.")
+        return title, scenes
 
-    raw = result.get("output_text")
-    if not raw:
+    def extract_story_text(result: dict, provider: str) -> str:
+        raw = result.get("output_text")
+        if raw:
+            return raw
         try:
-            raw = next(
+            return next(
                 part["text"]
                 for step in result.get("steps", [])
                 if step.get("type") == "model_output"
@@ -206,17 +169,43 @@ Do not add markdown fences or explanations.
                 if part.get("type") == "text" and part.get("text")
             )
         except (StopIteration, AttributeError, TypeError, KeyError) as error:
-            raise RuntimeError("Gemini Interactions API returned no story text.") from error
-    try:
-        story = json.loads(raw)
-        title = str(story["title"]).strip()
-        scenes = [str(item).strip() for item in story["scenes"]]
-    except (KeyError, IndexError, TypeError, ValueError) as error:
-        raise RuntimeError("Gemini returned an invalid story JSON structure.") from error
-    if not title or len(scenes) != 6 or any(not line for line in scenes):
-        raise RuntimeError("Story validation failed: expected a title and exactly 6 non-empty scenes.")
-    if any(len(line) > 240 for line in scenes):
-        raise RuntimeError("Story validation failed: each scene must be concise (240 characters max).")
+            raise RuntimeError(f"{provider} returned no story text.") from error
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    gemini_error = None
+    if api_key:
+        model = os.getenv("GEMINI_STORY_MODEL", "gemini-3.8-flash")
+        payload = {
+            "model": model,
+            "input": prompt,
+            "generation_config": {"temperature": 0.95},
+            "response_format": {
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": schema
+            }
+        }
+        request = urllib.request.Request(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            method="POST"
+        )
+        try:
+            with open_with_retries(request, timeout=180, label=f"Gemini story ({model})") as response:
+                result = json.loads(response.read().decode("utf-8"))
+            title, scenes = validate_story(extract_story_text(result, "Gemini"), "Gemini")
+            print(f"Story generated using Gemini model: {model}")
+        except Exception as error:
+            gemini_error = error
+            print(f"Gemini story generation failed ({type(error).__name__}: {error}); switching to Groq fallback.")
+    else:
+        print("GEMINI_API_KEY is not configured; using Groq story fallback.")
+
+    if gemini_error is not None or not api_key:
+        result = generate_story_with_groq(prompt)
+        title, scenes = validate_story(extract_story_text(result, "Groq"), "Groq")
+
     story_file = OUT / "story.json"
     story_file.write_text(json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Generated fresh Malayalam story: {title}")
