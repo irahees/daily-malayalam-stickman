@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   create-video:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -39,8 +39,11 @@ jobs:
 
       - name: Install FFmpeg and Malayalam-compatible fonts
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-core
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ffmpeg fonts-noto-core
+          command -v ffmpeg
+          command -v ffprobe
 
       - name: Install Python packages
         run: |
@@ -73,7 +76,6 @@ jobs:
         run: |
           test -s output/daily_malayalam_stickman.mp4
           ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/daily_malayalam_stickman.mp4
-
 
       - name: Publish MP4 as a public GitHub Release asset
         id: public-video
