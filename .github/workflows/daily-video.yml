@@ -66,7 +66,7 @@ jobs:
       - name: Create creative brief with OpenCode
         run: |
           mkdir -p output
-          opencode run --standalone --model opencode/gpt-5.6-sol "Act as the creative director for a Malayalam Shorts channel for Kerala viewers. Choose one original, compelling 45-60 second topic with a curiosity gap. Prefer surprising Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts. Clearly label hypotheticals; never present them as real events. Do not invent current trends, statistics, dates, or factual claims. Return ONLY valid JSON with exactly three non-empty string fields: topic, angle, hook. Write all three in natural Malayalam. The hook must work in the first 1.2 seconds. No markdown." > output/opencode_brief.json
+          opencode run --model opencode/gpt-5.6-sol "Act as the creative director for a Malayalam Shorts channel for Kerala viewers. Choose one original, compelling 45-60 second topic with a curiosity gap. Prefer surprising Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts. Clearly label hypotheticals; never present them as real events. Do not invent current trends, statistics, dates, or factual claims. Return ONLY valid JSON with exactly three non-empty string fields: topic, angle, hook. Write all three in natural Malayalam. The hook must work in the first 1.2 seconds. No markdown." > output/opencode_brief.json
           python -c "import json; d=json.load(open('output/opencode_brief.json', encoding='utf-8')); assert all(isinstance(d.get(k), str) and d[k].strip() for k in ('topic','angle','hook')); print('Brief validated:', d['topic'])"
 
       - name: Generate Malayalam story, narration and MP4
