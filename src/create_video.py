@@ -85,9 +85,9 @@ No markdown fences or explanations.
     if not topic or not angle or not hook:
         raise RuntimeError("OpenCode brief validation failed: topic, angle, and hook are required.")
     prompt += (
-        "\\n\\nOPENCODE CREATIVE DIRECTOR BRIEF (follow this direction):"
-        f"\\nTopic: {topic}\\nAngle: {angle}\\nOpening hook idea: {hook}"
-        "\\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
+        "\n\nOPENCODE CREATIVE DIRECTOR BRIEF (follow this direction):"
+        f"\nTopic: {topic}\nAngle: {angle}\nOpening hook idea: {hook}"
+        "\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
     )
     print(f"OpenCode creative brief loaded: {topic}")
 
