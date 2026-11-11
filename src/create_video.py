@@ -106,112 +106,59 @@ def generate_story_with_groq(prompt: str) -> dict:
 
 
 def generate_story() -> tuple[str, list[str]]:
-    """Generate a structured Malayalam story with Gemini first and Groq as fallback."""
+    """Generate a structured Malayalam story using Groq only; Gemini is intentionally disabled."""
     prompt = """
 Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
-Prioritize curiosity-driven topics, not only comedy stories. Rotate naturally between:
-(1) surprising Kerala/India "what if?" scenarios, (2) money, prices and everyday economics explained
-simply, (3) science and technology curiosities, (4) useful everyday facts, and (5) short mysteries
-or relatable comedy with a clever twist.
-
-Example topic style: "കേരളത്തിൽ സ്വർണവില പെട്ടെന്ന് ഒരു രൂപയായാൽ എന്ത് സംഭവിക്കും?"
-Treat this as a clearly labelled hypothetical scenario, NOT real news or a prediction. Other examples:
-what if petrol cost one rupee, what if electricity became free, or what if mobile internet stopped
-for a day. Choose a fresh, specific idea with strong relevance to Kerala; do not repeat the same
-topic or use generic clickbait.
-
-The first scene must begin with a powerful question or surprising hook in natural spoken Kerala
-Malayalam. Explain the idea step by step using simple examples and clear cause-and-effect.
-For hypothetical topics, explicitly make it clear that the situation is imaginary; never present it
-as breaking news or a real event. For factual topics, do not invent figures, dates, quotes, statistics,
-or claims. If a fact cannot be stated confidently, leave it out or phrase it as something to verify.
-Avoid financial advice, guaranteed predictions, misinformation, fearmongering, copied scripts,
-filler, and childish nonsense. End with a memorable takeaway and a short audience question.
-
-Audience: Malayalam-speaking teens and families in Kerala. Use natural spoken Kerala Malayalam,
-not textbook Malayalam. Create exactly 6 concise scene narration lines for 45-60 seconds total.
-Keep each line suitable for subtitles and narration. All story/dialogue text must be Malayalam.
-Give a short, curiosity-building Malayalam title. Return valid JSON only:
+Choose a fresh curiosity-driven topic such as surprising Kerala/India what-if scenarios, money and
+everyday economics, science and technology curiosities, useful facts, or a short mystery/comedy twist.
+Example style: "കേരളത്തിൽ സ്വർണവില പെട്ടെന്ന് ഒരു രൂപയായാൽ എന്ത് സംഭവിക്കും?"
+Treat hypothetical scenarios as imaginary, never real news or predictions. For factual topics, do not
+invent figures, dates, quotes, statistics, or claims. Use natural spoken Kerala Malayalam, not textbook
+Malayalam. Start with a powerful question in the first scene, explain clearly with cause and effect,
+avoid filler and misinformation, and end with a memorable takeaway plus a short audience question.
+Create exactly 6 concise Malayalam narration lines for 45-60 seconds total. Return valid JSON only:
 {"title":"...","scenes":["...","...","...","...","...","..."]}
-Do not add markdown fences or explanations.
+No markdown fences or explanations.
 """
-    schema = {
-        "type": "OBJECT",
-        "properties": {
-            "title": {"type": "STRING"},
-            "scenes": {"type": "ARRAY", "items": {"type": "STRING"}}
-        },
-        "required": ["title", "scenes"]
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY is missing. Add it in GitHub Settings > Secrets and variables > Actions.")
+    model = os.getenv("GROQ_STORY_MODEL", "openai/gpt-oss-20b")
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "Write original natural spoken Kerala Malayalam scripts. Return valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.85,
+        "max_completion_tokens": 1800,
+        "response_format": {"type": "json_object"},
     }
-
-    def validate_story(raw: str, provider: str) -> tuple[str, list[str]]:
-        try:
-            story = json.loads(raw)
-            title = str(story["title"]).strip()
-            scenes = [str(item).strip() for item in story["scenes"]]
-        except (KeyError, IndexError, TypeError, ValueError) as error:
-            raise RuntimeError(f"{provider} returned invalid story JSON.") from error
-        if not title or len(scenes) != 6 or any(not line for line in scenes):
-            raise RuntimeError(f"{provider} story validation failed: expected a title and exactly 6 non-empty scenes.")
-        if any(len(line) > 240 for line in scenes):
-            raise RuntimeError(f"{provider} story validation failed: each scene must be 240 characters max.")
-        return title, scenes
-
-    def extract_story_text(result: dict, provider: str) -> str:
-        raw = result.get("output_text")
-        if raw:
-            return raw
-        try:
-            return next(
-                part["text"]
-                for step in result.get("steps", [])
-                if step.get("type") == "model_output"
-                for part in step.get("content", [])
-                if part.get("type") == "text" and part.get("text")
-            )
-        except (StopIteration, AttributeError, TypeError, KeyError) as error:
-            raise RuntimeError(f"{provider} returned no story text.") from error
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    gemini_error = None
-    if api_key:
-        model = os.getenv("GEMINI_STORY_MODEL", "gemini-3.8-flash")
-        payload = {
-            "model": model,
-            "input": prompt,
-            "generation_config": {"temperature": 0.95},
-            "response_format": {
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": schema
-            }
-        }
-        request = urllib.request.Request(
-            "https://generativelanguage.googleapis.com/v1beta/interactions",
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-            method="POST"
-        )
-        try:
-            with open_with_retries(request, timeout=180, label=f"Gemini story ({model})") as response:
-                result = json.loads(response.read().decode("utf-8"))
-            title, scenes = validate_story(extract_story_text(result, "Gemini"), "Gemini")
-            print(f"Story generated using Gemini model: {model}")
-        except Exception as error:
-            gemini_error = error
-            print(f"Gemini story generation failed ({type(error).__name__}: {error}); switching to Groq fallback.")
-    else:
-        print("GEMINI_API_KEY is not configured; using Groq story fallback.")
-
-    if gemini_error is not None or not api_key:
-        result = generate_story_with_groq(prompt)
-        title, scenes = validate_story(extract_story_text(result, "Groq"), "Groq")
-
-    story_file = OUT / "story.json"
-    story_file.write_text(json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Generated fresh Malayalam story: {title}")
+    request = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with open_with_retries(request, timeout=180, label=f"Groq story ({model})") as response:
+        result = json.loads(response.read().decode("utf-8"))
+    try:
+        story = json.loads(result["choices"][0]["message"]["content"])
+        title = str(story["title"]).strip()
+        scenes = [str(item).strip() for item in story["scenes"]]
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise RuntimeError("Groq returned invalid story JSON.") from error
+    if not title or len(scenes) != 6 or any(not line for line in scenes):
+        raise RuntimeError("Groq story validation failed: expected a title and exactly 6 non-empty scenes.")
+    if any(len(line) > 240 for line in scenes):
+        raise RuntimeError("Groq story validation failed: each scene must be 240 characters max.")
+    OUT.mkdir(exist_ok=True)
+    (OUT / "story.json").write_text(
+        json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"Story generated using Groq model: {model} — {title}")
     return title, scenes
-
 
 def find_font(bold: bool = False) -> str | None:
     candidates = []
@@ -504,17 +451,13 @@ def create_voice_elevenlabs(text: str, destination: Path) -> None:
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """Try Gemini first; use ElevenLabs only if the primary TTS call fails."""
-    try:
-        create_voice_gemini(text, destination)
-    except Exception as primary_error:
-        if not os.getenv("ELEVENLABS_API_KEY") or not os.getenv("ELEVENLABS_VOICE_ID"):
-            raise RuntimeError(
-                f"Primary Gemini TTS failed and ElevenLabs fallback is not configured: {primary_error}"
-            ) from primary_error
-        print(f"Gemini TTS failed ({primary_error}); switching to ElevenLabs secondary provider...")
-        create_voice_elevenlabs(text, destination)
-
+    """Generate Malayalam narration using ElevenLabs only; Gemini TTS is intentionally disabled."""
+    if not os.getenv("ELEVENLABS_API_KEY") or not os.getenv("ELEVENLABS_VOICE_ID"):
+        raise RuntimeError(
+            "ElevenLabs is not configured. Add ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID "
+            "in GitHub Actions repository secrets."
+        )
+    create_voice_elevenlabs(text, destination)
 
 def probe_duration(audio: Path) -> float:
     result = subprocess.run(
