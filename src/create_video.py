@@ -120,6 +120,26 @@ Create exactly 6 concise Malayalam narration lines for 45-60 seconds total. Retu
 {"title":"...","scenes":["...","...","...","...","...","..."]}
 No markdown fences or explanations.
 """
+    # OpenCode acts as the creative director: its brief steers topic selection,
+    # while Groq remains responsible for the complete six-scene Malayalam script.
+    brief_path = OUT / "opencode_brief.json"
+    if not brief_path.is_file():
+        raise RuntimeError("OpenCode brief is missing. The OpenCode director step must run before video rendering.")
+    try:
+        brief = json.loads(brief_path.read_text(encoding="utf-8"))
+        topic = str(brief["topic"]).strip()
+        angle = str(brief["angle"]).strip()
+        hook = str(brief["hook"]).strip()
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("OpenCode returned an invalid creative brief JSON.") from error
+    if not topic or not angle or not hook:
+        raise RuntimeError("OpenCode brief validation failed: topic, angle, and hook are required.")
+    prompt += (
+        "\\n\\nOPENCode CREATIVE DIRECTOR BRIEF (follow this direction):"
+        f"\\nTopic: {topic}\\nAngle: {angle}\\nOpening hook idea: {hook}"
+        "\\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
+    )
+    print(f"OpenCode creative brief loaded: {topic}")
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is missing. Add it in GitHub Settings > Secrets and variables > Actions.")
