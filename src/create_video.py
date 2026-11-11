@@ -81,7 +81,6 @@ def generate_story_with_groq(prompt: str) -> dict:
         ],
         "temperature": 0.95,
         "max_completion_tokens": 1800,
-        "response_format": {"type": "json_object"},
     }
     request = urllib.request.Request(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -96,7 +95,9 @@ def generate_story_with_groq(prompt: str) -> dict:
     with open_with_retries(request, timeout=180, label=f"Groq story ({model})") as response:
         result = json.loads(response.read().decode("utf-8"))
     try:
-        raw = result["choices"][0]["message"]["content"]
+        raw = result["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         story = json.loads(raw)
     except (KeyError, IndexError, TypeError, ValueError) as error:
         raise RuntimeError("Groq returned an invalid story JSON response.") from error
