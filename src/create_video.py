@@ -18,14 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
 FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
-FPS = 24
+FPS = 15
 
 TITLE = ""
 LINES: list[str] = []
 
 
 def open_with_retries(request: urllib.request.Request, timeout: int, label: str):
-    """Retry transient Gemini overloads, connection failures, and socket timeouts."""
+    """Retry transient API overloads, connection failures, and socket timeouts."""
     retryable = {429, 500, 502, 503, 504}
     max_attempts = 4
     for attempt in range(max_attempts):
@@ -58,60 +58,12 @@ def open_with_retries(request: urllib.request.Request, timeout: int, label: str)
             time.sleep(delay)
 
 
-def generate_story_with_groq(prompt: str) -> dict:
-    """Generate a story with Groq when Gemini is unavailable or fails."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "Gemini story generation failed and GROQ_API_KEY is not configured. "
-            "Add GROQ_API_KEY in GitHub Settings > Secrets and variables > Actions."
-        )
-    model = os.getenv("GROQ_STORY_MODEL", "openai/gpt-oss-20b")
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You write original, natural spoken Kerala Malayalam short stories. "
-                    "Follow the user's exact output format and return valid JSON only."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.95,
-        "max_completion_tokens": 1800,
-    }
-    request = urllib.request.Request(
-        "https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "User-Agent": "DailyMalayalamStickman/1.0 (GitHub Actions)",
-        },
-        method="POST",
-    )
-    with open_with_retries(request, timeout=180, label=f"Groq story ({model})") as response:
-        result = json.loads(response.read().decode("utf-8"))
-    try:
-        raw = result["choices"][0]["message"]["content"].strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        story = json.loads(raw)
-    except (KeyError, IndexError, TypeError, ValueError) as error:
-        raise RuntimeError("Groq returned an invalid story JSON response.") from error
-    print(f"Story generated using Groq fallback model: {model}")
-    return {"output_text": json.dumps(story, ensure_ascii=False)}
-
-
 def generate_story() -> tuple[str, list[str]]:
-    """Generate a structured Malayalam story using Groq only; Gemini is intentionally disabled."""
+    """Generate a structured Malayalam story using the OpenAI API."""
     prompt = """
 Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
 Choose a fresh curiosity-driven topic such as surprising Kerala/India what-if scenarios, money and
 everyday economics, science and technology curiosities, useful facts, or a short mystery/comedy twist.
-Example style: "കേരളത്തിൽ സ്വർണവില പെട്ടെന്ന് ഒരു രൂപയായാൽ എന്ത് സംഭവിക്കും?"
 Treat hypothetical scenarios as imaginary, never real news or predictions. For factual topics, do not
 invent figures, dates, quotes, statistics, or claims. Use natural spoken Kerala Malayalam, not textbook
 Malayalam. Start with a powerful question in the first scene, explain clearly with cause and effect,
@@ -120,8 +72,6 @@ Create exactly 6 concise Malayalam narration lines for 45-60 seconds total. Retu
 {"title":"...","scenes":["...","...","...","...","...","..."]}
 No markdown fences or explanations.
 """
-    # OpenCode acts as the creative director: its brief steers topic selection,
-    # while Groq remains responsible for the complete six-scene Malayalam script.
     brief_path = OUT / "opencode_brief.json"
     if not brief_path.is_file():
         raise RuntimeError("OpenCode brief is missing. The OpenCode director step must run before video rendering.")
@@ -135,19 +85,20 @@ No markdown fences or explanations.
     if not topic or not angle or not hook:
         raise RuntimeError("OpenCode brief validation failed: topic, angle, and hook are required.")
     prompt += (
-        "\n\\nOPENCode CREATIVE DIRECTOR BRIEF (follow this direction):"
-        f"\nTopic: {topic}\\nAngle: {angle}\\nOpening hook idea: {hook}"
-        "\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
+        "\\n\\nOPENCODE CREATIVE DIRECTOR BRIEF (follow this direction):"
+        f"\\nTopic: {topic}\\nAngle: {angle}\\nOpening hook idea: {hook}"
+        "\\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
     )
     print(f"OpenCode creative brief loaded: {topic}")
-    api_key = os.getenv("GROQ_API_KEY")
+
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("GROQ_API_KEY is missing. Add it in GitHub Settings > Secrets and variables > Actions.")
-    model = os.getenv("GROQ_STORY_MODEL", "openai/gpt-oss-20b")
+        raise RuntimeError("OPENAI_API_KEY is missing. Add it in GitHub Settings > Secrets and variables > Actions.")
+    model = os.getenv("OPENAI_STORY_MODEL", "gpt-4o-mini")
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "Write original natural spoken Kerala Malayalam scripts. Return valid JSON only."},
+            {"role": "system", "content": "Write original, natural spoken Kerala Malayalam scripts. Return valid JSON only."},
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.85,
@@ -155,29 +106,29 @@ No markdown fences or explanations.
         "response_format": {"type": "json_object"},
     }
     request = urllib.request.Request(
-        "https://api.groq.com/openai/v1/chat/completions",
+        "https://api.openai.com/v1/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         method="POST",
     )
-    with open_with_retries(request, timeout=180, label=f"Groq story ({model})") as response:
+    with open_with_retries(request, timeout=120, label=f"OpenAI story ({model})") as response:
         result = json.loads(response.read().decode("utf-8"))
     try:
         story = json.loads(result["choices"][0]["message"]["content"])
         title = str(story["title"]).strip()
         scenes = [str(item).strip() for item in story["scenes"]]
     except (KeyError, IndexError, TypeError, ValueError) as error:
-        raise RuntimeError("Groq returned invalid story JSON.") from error
+        raise RuntimeError("OpenAI returned invalid story JSON.") from error
     if not title or len(scenes) != 6 or any(not line for line in scenes):
-        raise RuntimeError("Groq story validation failed: expected a title and exactly 6 non-empty scenes.")
+        raise RuntimeError("OpenAI story validation failed: expected a title and exactly 6 non-empty scenes.")
     if any(len(line) > 240 for line in scenes):
-        raise RuntimeError("Groq story validation failed: each scene must be 240 characters max.")
+        raise RuntimeError("OpenAI story validation failed: each scene must be 240 characters max.")
     OUT.mkdir(exist_ok=True)
     (OUT / "story.json").write_text(
         json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"Story generated using Groq model: {model} — {title}")
+    print(f"Story generated using OpenAI model: {model} — {title}")
     return title, scenes
 
 def find_font(bold: bool = False) -> str | None:
@@ -367,7 +318,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    sky.save(FRAMES / f"frame_{output_frame:06d}.png", optimize=False)
+    sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
 
 def create_voice_gemini(text: str, destination: Path) -> None:
     """Generate Malayalam narration using the primary Gemini TTS provider."""
@@ -529,10 +480,10 @@ def main():
     # Encode the image sequence with narration in one pass (avoid a second full video encode).
     subprocess.run([
         "ffmpeg", "-y", "-framerate", str(FPS), "-i",
-        str(FRAMES / "frame_%06d.png"), "-i", str(audio),
+        str(FRAMES / "frame_%06d.jpg"), "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0",
         "-vf", "scale=1080:1920:flags=bicubic,setsar=1",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
         "-shortest", "-movflags", "+faststart", str(final_video)
     ], check=True)
