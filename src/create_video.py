@@ -59,11 +59,11 @@ def open_with_retries(request: urllib.request.Request, timeout: int, label: str)
 
 
 def generate_story_with_groq(prompt: str) -> dict:
-    """Generate a story with Groq only when all configured Gemini story models are rate-limited."""
+    """Generate a story with Groq when Gemini is unavailable or fails."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "Gemini story quota is exhausted and GROQ_API_KEY is not configured. "
+            "Gemini story generation failed and GROQ_API_KEY is not configured. "
             "Add GROQ_API_KEY in GitHub Settings > Secrets and variables > Actions."
         )
     model = os.getenv("GROQ_STORY_MODEL", "openai/gpt-oss-20b")
