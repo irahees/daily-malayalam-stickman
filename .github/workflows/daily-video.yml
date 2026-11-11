@@ -53,7 +53,19 @@ jobs:
           test -n "$ELEVENLABS_API_KEY" || { echo "::error::ELEVENLABS_API_KEY is missing."; exit 1; }
           test -n "$ELEVENLABS_VOICE_ID" || { echo "::error::ELEVENLABS_VOICE_ID is missing."; exit 1; }
 
-      - name: Render Malayalam video with Groq and ElevenLabs
+      - name: Install OpenCode CLI
+        run: npm install --global opencode-ai
+
+      - name: OpenCode creative director
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          test -n "$OPENCODE_API_KEY" || { echo "::error::OPENCODE_API_KEY is missing. Add it in GitHub Actions secrets."; exit 1; }
+          mkdir -p output
+          opencode run --standalone --model opencode/gpt-5.6-sol "Act as the creative director for a Malayalam YouTube Shorts channel for Kerala viewers. Choose one highly compelling, original 45-60 second video topic with a curiosity gap. Prefer surprising Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts. Do not present hypotheticals as real events. Do not invent current trends, statistics, dates, or factual claims. Return ONLY valid JSON with exactly these string fields: topic, angle, hook. Write all three values in natural Malayalam. The hook must be a short question suitable for the first 1.2 seconds. No markdown." > output/opencode_brief.json
+          python -c "import json; d=json.load(open('output/opencode_brief.json', encoding='utf-8')); assert all(isinstance(d.get(k), str) and d[k].strip() for k in ('topic','angle','hook')); print('OpenCode brief validated:', d['topic'])"
+
+      - name: Render Malayalam video with OpenCode direction, Groq and ElevenLabs
         run: python src/create_video.py
 
       - name: Upload Private test video to YouTube
