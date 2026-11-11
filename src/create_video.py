@@ -111,15 +111,30 @@ def generate_story() -> tuple[str, list[str]]:
         raise RuntimeError("GEMINI_API_KEY is required for AI story generation.")
     model = os.getenv("GEMINI_STORY_MODEL", "gemini-3.8-flash")
     prompt = """
-Write ONE original, highly engaging Malayalam short story for a 45-60 second vertical stickman video.
+Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
+Prioritize curiosity-driven topics, not only comedy stories. Rotate naturally between:
+(1) surprising Kerala/India "what if?" scenarios, (2) money, prices and everyday economics explained
+simply, (3) science and technology curiosities, (4) useful everyday facts, and (5) short mysteries
+or relatable comedy with a clever twist.
+
+Example topic style: "കേരളത്തിൽ സ്വർണവില പെട്ടെന്ന് ഒരു രൂപയായാൽ എന്ത് സംഭവിക്കും?"
+Treat this as a clearly labelled hypothetical scenario, NOT real news or a prediction. Other examples:
+what if petrol cost one rupee, what if electricity became free, or what if mobile internet stopped
+for a day. Choose a fresh, specific idea with strong relevance to Kerala; do not repeat the same
+topic or use generic clickbait.
+
+The first scene must begin with a powerful question or surprising hook in natural spoken Kerala
+Malayalam. Explain the idea step by step using simple examples and clear cause-and-effect.
+For hypothetical topics, explicitly make it clear that the situation is imaginary; never present it
+as breaking news or a real event. For factual topics, do not invent figures, dates, quotes, statistics,
+or claims. If a fact cannot be stated confidently, leave it out or phrase it as something to verify.
+Avoid financial advice, guaranteed predictions, misinformation, fearmongering, copied scripts,
+filler, and childish nonsense. End with a memorable takeaway and a short audience question.
+
 Audience: Malayalam-speaking teens and families in Kerala. Use natural spoken Kerala Malayalam,
-not textbook Malayalam. Genre: clever mystery/thriller with emotional payoff OR grounded comedy
-with a genuinely clever twist. Avoid childish nonsense, random magic, copied plots, filler,
-repeated jokes, and predictable endings. The opening must create curiosity in the first sentence.
-Every event must have a clear cause and effect. Plant a clue before the reveal. End with a satisfying
-twist or emotional reveal, then a short audience question. Create exactly 6 scene narration lines.
-Each line should be concise enough for subtitles and spoken narration. Make all dialogue/story text
-Malayalam. Give a short Malayalam title. Return valid JSON only:
+not textbook Malayalam. Create exactly 6 concise scene narration lines for 45-60 seconds total.
+Keep each line suitable for subtitles and narration. All story/dialogue text must be Malayalam.
+Give a short, curiosity-building Malayalam title. Return valid JSON only:
 {"title":"...","scenes":["...","...","...","...","...","..."]}
 Do not add markdown fences or explanations.
 """
