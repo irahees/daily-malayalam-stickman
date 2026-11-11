@@ -22,7 +22,6 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_STORY_MODEL: gpt-4o-mini
-      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ELEVENLABS_TTS_MODEL: eleven_v3
@@ -53,21 +52,15 @@ jobs:
       - name: Validate required secrets
         shell: bash
         run: |
-          for key in OPENAI_API_KEY OPENCODE_API_KEY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID; do
+          for key in OPENAI_API_KEY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID; do
             if [ -z "${!key}" ]; then
               echo "::error::$key is missing from GitHub Actions repository secrets."
               exit 1
             fi
           done
 
-      - name: Install OpenCode CLI
-        run: npm install --global opencode-ai
-
-      - name: Create creative brief with OpenCode
-        run: |
-          mkdir -p output
-          opencode run --model opencode/gpt-5.6-sol "Act as the creative director for a Malayalam Shorts channel for Kerala viewers. Choose one original, compelling 45-60 second topic with a curiosity gap. Prefer surprising Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts. Clearly label hypotheticals; never present them as real events. Do not invent current trends, statistics, dates, or factual claims. Return ONLY valid JSON with exactly three non-empty string fields: topic, angle, hook. Write all three in natural Malayalam. The hook must work in the first 1.2 seconds. No markdown." > output/opencode_brief.json
-          python -c "import json; d=json.load(open('output/opencode_brief.json', encoding='utf-8')); assert all(isinstance(d.get(k), str) and d[k].strip() for k in ('topic','angle','hook')); print('Brief validated:', d['topic'])"
+      - name: Create creative brief with OpenAI
+        run: python src/create_brief.py
 
       - name: Generate Malayalam story, narration and MP4
         run: python src/create_video.py
