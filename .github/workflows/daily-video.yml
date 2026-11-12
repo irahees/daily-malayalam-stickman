@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: daily-malayalam-video
@@ -20,8 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_STORY_MODEL: gpt-4o-mini
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_TEXT_MODEL: gemini-2.5-flash
+      GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ELEVENLABS_TTS_MODEL: eleven_v3
@@ -52,14 +53,14 @@ jobs:
       - name: Validate required secrets
         shell: bash
         run: |
-          for key in OPENAI_API_KEY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID; do
+          for key in GEMINI_API_KEY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID; do
             if [ -z "${!key}" ]; then
               echo "::error::$key is missing from GitHub Actions repository secrets."
               exit 1
             fi
           done
 
-      - name: Create creative brief with OpenAI
+      - name: Create creative brief with Gemini
         run: python src/create_brief.py
 
       - name: Generate Malayalam story, narration and MP4
@@ -70,38 +71,7 @@ jobs:
           test -s output/daily_malayalam_stickman.mp4
           ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/daily_malayalam_stickman.mp4
 
-      - name: Publish MP4 as a public GitHub Release asset
-        id: public-video
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="daily-video-${GITHUB_RUN_ID}"
-          TITLE="Daily Malayalam Short — $(TZ=Asia/Kolkata date +'%Y-%m-%d')"
-          gh release create "$TAG" output/daily_malayalam_stickman.mp4 \
-            --title "$TITLE" \
-            --notes "Automatically generated Malayalam short. Review before publishing."
-          ASSET_URL="https://github.com/${GH_REPO}/releases/download/${TAG}/daily_malayalam_stickman.mp4"
-          echo "url=$ASSET_URL" >> "$GITHUB_OUTPUT"
-          echo "Public video URL created: $ASSET_URL"
-
-      - name: Verify Buffer connection and prepare social drafts
-        env:
-          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-          PUBLIC_VIDEO_URL: ${{ steps.public-video.outputs.url }}
-          BUFFER_MODE: ${{ github.event_name == 'push' && 'verify' || 'draft' }}
-        run: |
-          set -euo pipefail
-          if [ -z "${BUFFER_API_KEY:-}" ]; then
-            echo "::error::BUFFER_API_KEY is missing from GitHub Actions repository secrets."
-            exit 1
-          fi
-          curl --fail --location --silent --show-error --head "$PUBLIC_VIDEO_URL" >/dev/null
-          python src/buffer_publish.py "$BUFFER_MODE"
-
-      - name: Save generated video artifact
+      - name: Save generated video artifact (private review only)
         uses: actions/upload-artifact@v4
         with:
           name: malayalam-short-video
@@ -109,6 +79,6 @@ jobs:
             output/daily_malayalam_stickman.mp4
             output/narration.wav
             output/story.json
-            output/opencode_brief.json
+            output/creative_brief.json
           if-no-files-found: error
           retention-days: 7
