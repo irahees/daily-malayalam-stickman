@@ -67,11 +67,11 @@ jobs:
           set -euo pipefail
           git checkout --orphan buffer-media
           git rm -rf . >/dev/null 2>&1 || true
-          cp "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4" ./daily_malayalam_stickman.mp4
-          git add daily_malayalam_stickman.mp4
+          cp "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman-${GITHUB_RUN_ID}.mp4" "./daily_malayalam_stickman-${GITHUB_RUN_ID}.mp4"
+          git add "daily_malayalam_stickman-${GITHUB_RUN_ID}.mp4"
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Publish existing daily Malayalam video"
           git push origin HEAD:buffer-media --force
       - name: Publish immediately through Buffer
         env:
-          BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman.mp4
+          BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman-${{ github.run_id }}.mp4
         run: python "$RUNNER_TEMP/publish_buffer.py"
