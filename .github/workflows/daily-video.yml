@@ -107,6 +107,8 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/buffer-media"
           cp "$VIDEO" "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
+      - name: Preserve Buffer publisher before switching branches
+        run: cp src/publish_buffer.py "$RUNNER_TEMP/publish_buffer.py"
       - name: Publish video to a public media branch
         shell: bash
         run: |
@@ -120,4 +122,4 @@ jobs:
       - name: Publish immediately through Buffer
         env:
           BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman.mp4
-        run: python src/publish_buffer.py
+        run: python "$RUNNER_TEMP/publish_buffer.py"
