@@ -2,18 +2,18 @@ name: Daily Malayalam Stickman Creator
 
 on:
   schedule:
-    # Daily at 7:00 AM IST (01:30 UTC)
     - cron: "30 1 * * *"
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore:
-      - '.github/workflows/**'
-      - 'src/publish_buffer.py'
-      - 'README.md'
+    paths:
+      - "src/**"
+      - "requirements.txt"
+      - ".github/workflows/daily-video.yml"
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 concurrency:
   group: daily-malayalam-video
@@ -27,16 +27,13 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       PYTHONUNBUFFERED: "1"
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install FFmpeg and Malayalam-compatible fonts
         run: |
           set -euo pipefail
@@ -44,34 +41,27 @@ jobs:
           sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ffmpeg fonts-noto-core
           command -v ffmpeg
           command -v ffprobe
-
       - name: Install Python packages
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Validate Gemini TTS secret
         shell: bash
         run: |
-          for key in GEMINI_API_KEY; do
-            if [ -z "${!key}" ]; then
-              echo "::error::$key is missing from GitHub Actions repository secrets."
-              exit 1
-            fi
-          done
-
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "::error::GEMINI_API_KEY is missing from GitHub Actions repository secrets."
+            exit 1
+          fi
       - name: Select offline Malayalam script
         run: python src/create_brief.py
-
       - name: Generate Malayalam narration and MP4 with Gemini TTS
         run: python src/create_video.py
-
       - name: Verify output video
         run: |
           test -s output/daily_malayalam_stickman.mp4
+          test -s output/story.json
           ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/daily_malayalam_stickman.mp4
-
-      - name: Save generated video artifact (private review only)
+      - name: Save generated video artifact
         uses: actions/upload-artifact@v4
         with:
           name: malayalam-short-video
@@ -82,3 +72,52 @@ jobs:
             output/creative_brief.json
           if-no-files-found: error
           retention-days: 7
+
+  publish:
+    needs: create-video
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      VIDEO_ARTIFACT_DIR: ${{ runner.temp }}/buffer-artifact
+    steps:
+      - name: Checkout publishing script
+        uses: actions/checkout@v4
+      - name: Verify Buffer API key
+        shell: bash
+        run: |
+          if [ -z "${BUFFER_API_KEY}" ]; then
+            echo "::error::BUFFER_API_KEY is missing from GitHub Actions repository secrets."
+            exit 1
+          fi
+      - name: Download this run's video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-short-video
+          path: ${{ runner.temp }}/buffer-artifact
+      - name: Prepare public video file
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIDEO="$(find "${VIDEO_ARTIFACT_DIR}" -type f -name '*.mp4' -print -quit)"
+          STORY="$(find "${VIDEO_ARTIFACT_DIR}" -type f -name 'story.json' -print -quit)"
+          if [ -z "$VIDEO" ] || [ -z "$STORY" ]; then
+            echo "::error::The artifact must contain an MP4 and story.json."
+            exit 1
+          fi
+          mkdir -p "${{ runner.temp }}/buffer-media"
+          cp "$VIDEO" "${{ runner.temp }}/buffer-media/daily_malayalam_stickman.mp4"
+      - name: Publish video to a public media branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --orphan buffer-media
+          git rm -rf . >/dev/null 2>&1 || true
+          cp "${{ runner.temp }}/buffer-media/daily_malayalam_stickman.mp4" ./daily_malayalam_stickman.mp4
+          git add daily_malayalam_stickman.mp4
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Publish daily Malayalam video media"
+          git push origin HEAD:buffer-media --force
+      - name: Publish immediately through Buffer
+        env:
+          BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman.mp4
+        run: python src/publish_buffer.py
