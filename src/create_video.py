@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import base64
 import json
 import math
 import os
 import shutil
-import socket
 import subprocess
-import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
@@ -24,105 +19,22 @@ TITLE = ""
 LINES: list[str] = []
 
 
-def open_with_retries(request: urllib.request.Request, timeout: int, label: str):
-    """Retry transient API overloads, connection failures, and socket timeouts."""
-    retryable = {429, 500, 502, 503, 504}
-    max_attempts = 4
-    for attempt in range(max_attempts):
-        try:
-            return urllib.request.urlopen(request, timeout=timeout)
-        except urllib.error.HTTPError as error:
-            details = error.read().decode("utf-8", errors="replace")
-            if error.code not in retryable or attempt == max_attempts - 1:
-                raise RuntimeError(
-                    f"{label} API HTTP {error.code} after {attempt + 1} attempt(s): {details[:1200]}"
-                ) from error
-            delay = min(90, 2 ** (attempt + 1))
-            if error.code == 429:
-                retry_header = error.headers.get("Retry-After")
-                if retry_header and retry_header.isdigit():
-                    delay = max(delay, min(90, int(retry_header)))
-                else:
-                    match = __import__("re").search(r"retry in (\\d+)s", details, __import__("re").I)
-                    if match:
-                        delay = max(delay, min(90, int(match.group(1))))
-            print(f"{label} API temporarily returned HTTP {error.code}; respecting rate limit and retrying in {delay}s...")
-            time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError, socket.timeout) as error:
-            if attempt == max_attempts - 1:
-                raise RuntimeError(
-                    f"{label} API connection timed out or failed after {max_attempts} attempts: {error}"
-                ) from error
-            delay = min(60, 2 ** (attempt + 1))
-            print(f"{label} API connection/timeout issue; retrying in {delay}s...")
-            time.sleep(delay)
-
-
 def generate_story() -> tuple[str, list[str]]:
-    """Generate a six-scene Malayalam story using Gemini text generation."""
-    brief_path = OUT / "creative_brief.json"
-    if not brief_path.is_file():
-        raise RuntimeError("Gemini creative brief is missing.")
+    """Load the locally selected Malayalam script; no text-generation API is called."""
+    story_path = OUT / "story.json"
+    if not story_path.is_file():
+        raise RuntimeError("Local Malayalam story is missing. Run src/create_brief.py first.")
     try:
-        brief = json.loads(brief_path.read_text(encoding="utf-8"))
-        topic = str(brief["topic"]).strip()
-        angle = str(brief["angle"]).strip()
-        hook = str(brief["hook"]).strip()
-    except (OSError, KeyError, TypeError, ValueError) as error:
-        raise RuntimeError("Gemini creative brief JSON is invalid.") from error
-    if not topic or not angle or not hook:
-        raise RuntimeError("Creative brief validation failed.")
-
-    prompt = f"""
-Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
-Use natural spoken Kerala Malayalam, not textbook Malayalam. Start with a powerful question in
-the first scene, explain clearly with cause and effect, avoid filler and misinformation, and end
-with a memorable takeaway plus a short audience question. Clearly label hypothetical scenarios.
-For factual topics, do not invent figures, dates, quotes, statistics, or claims.
-Creative brief:
-Topic: {topic}
-Angle: {angle}
-Opening hook: {hook}
-Create exactly 6 concise Malayalam narration lines. Return valid JSON only:
-{{"title":"...","scenes":["...","...","...","...","...","..."]}}
-"""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing.")
-    model = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.85,
-            "maxOutputTokens": 1800,
-            "responseMimeType": "application/json"
-        }
-    }
-    request = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST",
-    )
-    with open_with_retries(request, timeout=120, label=f"Gemini story ({model})") as response:
-        result = json.loads(response.read().decode("utf-8"))
-    try:
-        content = result["candidates"][0]["content"]["parts"][0]["text"]
-        story = json.loads(content)
+        story = json.loads(story_path.read_text(encoding="utf-8"))
         title = str(story["title"]).strip()
         scenes = [str(item).strip() for item in story["scenes"]]
-    except (KeyError, IndexError, TypeError, ValueError) as error:
-        raise RuntimeError("Gemini returned invalid story JSON.") from error
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("Local Malayalam story JSON is invalid.") from error
     if not title or len(scenes) != 6 or any(not line for line in scenes):
-        raise RuntimeError("Gemini story validation failed: expected a title and exactly 6 non-empty scenes.")
+        raise RuntimeError("Story validation failed: expected a title and exactly 6 non-empty scenes.")
     if any(len(line) > 240 for line in scenes):
-        raise RuntimeError("Gemini story validation failed: each scene must be 240 characters max.")
-    OUT.mkdir(exist_ok=True)
-    (OUT / "story.json").write_text(
-        json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    print(f"Story generated using Gemini model: {model} — {title}")
+        raise RuntimeError("Story validation failed: each scene must be 240 characters max.")
+    print(f"Loaded offline Malayalam story: {title}")
     return title, scenes
 
 def find_font(bold: bool = False) -> str | None:
@@ -314,69 +226,18 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     FRAMES.mkdir(parents=True, exist_ok=True)
     sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
 
-def create_voice_gemini(text: str, destination: Path) -> None:
-    """Generate Malayalam narration using the primary Gemini TTS provider."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing. Add it as a GitHub Actions repository secret.")
-
-    model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
-    voice = os.getenv("GEMINI_TTS_VOICE", "Kore")
-    style = os.getenv(
-        "GEMINI_TTS_STYLE",
-        "Speak natural, conversational Malayalam as a skilled Kerala storyteller. "
-        "Use clear Malayalam pronunciation, a warm human-like voice, lively but not childish "
-        "delivery, varied pacing, and natural pauses. Keep the spoken words exactly as written."
-    )
-    payload = {
-        "model": model,
-        "input": f"{style}\nRead the following Malayalam narration exactly as written, with no translation: {text}",
-        "response_format": {"type": "audio"},
-        "generation_config": {"speech_config": [{"voice": voice, "language": "ml-IN"}]}
-    }
-    request = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/interactions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST"
-    )
-    with open_with_retries(request, timeout=300, label="Gemini TTS") as response:
-        result = json.loads(response.read().decode("utf-8"))
-
-    audio_data = (result.get("output_audio") or {}).get("data")
-    if not audio_data:
-        for step in result.get("steps", []):
-            for item in step.get("content", []):
-                if item.get("type") in (None, "audio") and item.get("data"):
-                    audio_data = item["data"]
-                    break
-            if audio_data:
-                break
-    if not audio_data:
-        raise RuntimeError("Gemini TTS response did not contain audio data.")
-    audio_bytes = base64.b64decode(audio_data)
-    if len(audio_bytes) < 1024 or not audio_bytes.startswith(b"RIFF"):
-        raise RuntimeError("Gemini TTS did not return a valid WAV file.")
-    destination.write_bytes(audio_bytes)
-    print(f"Gemini TTS audio saved. Model={model}, voice={voice}, bytes={len(audio_bytes)}")
-
-
 def create_voice_elevenlabs(text: str, destination: Path) -> None:
-    """Fallback Malayalam narration using ElevenLabs Eleven v3."""
+    """Generate Malayalam narration using ElevenLabs as the only external AI service."""
     api_key = os.getenv("ELEVENLABS_API_KEY")
     voice_id = os.getenv("ELEVENLABS_VOICE_ID")
     if not api_key or not voice_id:
         raise RuntimeError(
-            "ElevenLabs fallback is not configured. Add ELEVENLABS_API_KEY and "
+            "ElevenLabs is not configured. Add ELEVENLABS_API_KEY and "
             "ELEVENLABS_VOICE_ID in GitHub Actions repository secrets."
         )
 
     model = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_v3")
-    payload = {
-        "text": text,
-        "model_id": model,
-        "language_code": "ml"
-    }
+    payload = {"text": text, "model_id": model, "language_code": "ml"}
     request = urllib.request.Request(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -387,16 +248,27 @@ def create_voice_elevenlabs(text: str, destination: Path) -> None:
         },
         method="POST"
     )
-    try:
-        with open_with_retries(request, timeout=240, label="ElevenLabs TTS") as response:
-            audio_bytes = response.read()
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"ElevenLabs TTS HTTP {error.code}: {details[:1000]}") from error
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=240) as response:
+                audio_bytes = response.read()
+            break
+        except urllib.error.HTTPError as error:
+            details = error.read().decode("utf-8", errors="replace")
+            if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                raise RuntimeError(f"ElevenLabs TTS HTTP {error.code}: {details[:1000]}") from error
+            delay = min(60, 2 ** (attempt + 1))
+            print(f"ElevenLabs temporarily returned HTTP {error.code}; retrying in {delay}s.")
+            time.sleep(delay)
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt == 3:
+                raise RuntimeError(f"ElevenLabs connection failed: {error}") from error
+            delay = min(30, 2 ** (attempt + 1))
+            print(f"ElevenLabs connection issue; retrying in {delay}s.")
+            time.sleep(delay)
 
     if len(audio_bytes) < 1024:
         raise RuntimeError("ElevenLabs returned an empty or invalid audio response.")
-
     mp3_path = destination.with_suffix(".elevenlabs.mp3")
     mp3_path.write_bytes(audio_bytes)
     try:
@@ -406,22 +278,13 @@ def create_voice_elevenlabs(text: str, destination: Path) -> None:
         )
     finally:
         mp3_path.unlink(missing_ok=True)
-
     if not destination.exists() or destination.stat().st_size < 1024:
         raise RuntimeError("ElevenLabs audio could not be converted to WAV.")
-    print(f"ElevenLabs fallback audio saved. Model={model}, bytes={destination.stat().st_size}")
+    print(f"ElevenLabs audio saved. Model={model}, bytes={destination.stat().st_size}")
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """Use Gemini TTS as primary and ElevenLabs as a verified-on-success fallback."""
-    if os.getenv("GEMINI_API_KEY"):
-        try:
-            create_voice_gemini(text, destination)
-            return
-        except Exception as error:
-            print(f"Gemini TTS failed; trying ElevenLabs fallback. Reason: {type(error).__name__}: {error}")
-    else:
-        print("GEMINI_API_KEY is not configured; using ElevenLabs fallback.")
+    """ElevenLabs is the sole voice-generation provider."""
     create_voice_elevenlabs(text, destination)
 
 def probe_duration(audio: Path) -> float:
