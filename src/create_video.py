@@ -229,16 +229,42 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     FRAMES.mkdir(parents=True, exist_ok=True)
     sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
 
-def create_voice_elevenlabs(text: str, destination: Path) -> None:
-    """Generate Malayalam narration using ElevenLabs as the only external AI service."""
-    api_key = os.getenv("ELEVENLABS_API_KEY")
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID")
-    if not api_key or not voice_id:
-        raise RuntimeError(
-            "ElevenLabs is not configured. Add ELEVENLABS_API_KEY and "
-            "ELEVENLABS_VOICE_ID in GitHub Actions repository secrets."
-        )
+def resolve_free_default_voice(api_key: str) -> tuple[str, str]:
+    """Select an account-provided default voice, never a community library voice."""
+    request = urllib.request.Request(
+        "https://api.elevenlabs.io/v2/voices?voice_type=default&page_size=100",
+        headers={"xi-api-key": api_key, "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"ElevenLabs default-voice lookup HTTP {error.code}: {details[:700]}") from error
 
+    voices = [v for v in payload.get("voices", []) if v.get("voice_id")]
+    if not voices:
+        raise RuntimeError("ElevenLabs returned no default voices for this account.")
+
+    # Prefer a voice explicitly marked as free, then a male narration voice.
+    free_voices = [v for v in voices if "free" in (v.get("available_for_tiers") or [])]
+    candidates = free_voices or voices
+    male = [v for v in candidates if str((v.get("labels") or {}).get("gender", "")).lower() == "male"]
+    selected = (male or candidates)[0]
+    voice_id = str(selected["voice_id"])
+    voice_name = str(selected.get("name") or "ElevenLabs default voice")
+    print(f"Selected account default voice: {voice_name} ({voice_id})")
+    return voice_id, voice_name
+
+
+def create_voice_elevenlabs(text: str, destination: Path) -> None:
+    """Generate Malayalam narration using an account-provided default ElevenLabs voice."""
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY is missing from GitHub Actions repository secrets.")
+
+    voice_id, voice_name = resolve_free_default_voice(api_key)
     model = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_v3")
     payload = {"text": text, "model_id": model, "language_code": "ml"}
     request = urllib.request.Request(
@@ -283,7 +309,7 @@ def create_voice_elevenlabs(text: str, destination: Path) -> None:
         mp3_path.unlink(missing_ok=True)
     if not destination.exists() or destination.stat().st_size < 1024:
         raise RuntimeError("ElevenLabs audio could not be converted to WAV.")
-    print(f"ElevenLabs audio saved. Model={model}, bytes={destination.stat().st_size}")
+    print(f"ElevenLabs audio saved. Model={model}, voice={voice_name}, bytes={destination.stat().st_size}")
 
 
 def create_voice(text: str, destination: Path) -> None:
