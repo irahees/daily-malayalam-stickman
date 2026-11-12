@@ -77,6 +77,228 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
     return rows
 
 
+def draw_story_background(draw, index: int, line: str, title: str, frame: int, phase: float, camera: int) -> str:
+    """Draw a story-matched illustrated location and meaningful props for each scene."""
+    text = (title + " " + line).lower()
+    ink = (48, 39, 42)
+    cream = (255, 239, 202)
+    gold = any(k in text for k in ("സ്വർണ്ണ", "സ്വർണം", "പവൻ", "gold", "jewellery", "ആഭരണം"))
+    battery = any(k in text for k in ("ബാറ്ററി", "ചാർജ്", "ഫോൺ", "മൊബൈൽ"))
+    internet = any(k in text for k in ("ഇന്റർനെറ്റ്", "നെറ്റ്വർക്ക്", "ഓൺലൈൻ", "ഡിജിറ്റൽ"))
+    rain = any(k in text for k in ("മഴ", "മഴത്തുള്ളി", "വെള്ളം", "മണ്ണ്", "കടൽ"))
+    fuel = any(k in text for k in ("പെട്രോൾ", "ഇന്ധന", "വാഹന", "യാത്ര"))
+    shop = any(k in text for k in ("കട", "വില", "വാങ്ങ", "സാധന", "വിതരണ"))
+    night = index == 5
+
+    # Warm illustrated environments with visible floors, wall depth and scene-specific architecture.
+    if gold:
+        labels = ["NEWS STUDIO", "GOLD SHOP", "PRICE BOARD", "GOLD LOAN BANK", "HOME", "THE BIG QUESTION"]
+        if index == 0:
+            draw.rectangle((0, 0, 720, 1280), fill=(31, 35, 58))
+            draw.rectangle((0, 780, 720, 1280), fill=(72, 48, 47))
+            draw.rounded_rectangle((45, 220, 675, 690), radius=22, fill=(12, 27, 58), outline=(241, 177, 67), width=8)
+            draw.rectangle((65, 240, 655, 310), fill=(192, 40, 32))
+            draw.text((92, 254), "BREAKING NEWS", font=get_font(34, True), fill=(255,255,255))
+            draw.text((90, 355), "1 പവൻ = ₹1 ?", font=get_font(48, True), fill=(255,220,90), stroke_width=2, stroke_fill=(50,20,20))
+            draw.line((100, 520, 620, 520), fill=(245,190,60), width=6)
+            draw.text((130, 560), "GOLD PRICE SHOCK", font=get_font(28, True), fill=cream)
+            # News desk and microphone.
+            draw.rounded_rectangle((90, 820, 630, 1010), radius=18, fill=(117,65,43), outline=ink, width=7)
+            draw.rectangle((115, 845, 605, 890), fill=(163,91,55))
+            draw.ellipse((540, 745, 570, 775), fill=(220,220,220), outline=ink, width=4)
+            draw.line((555, 770, 555, 825), fill=ink, width=8)
+        elif index in (1, 2):
+            draw.rectangle((0,0,720,1280), fill=(128,47,37))
+            draw.rectangle((0,900,720,1280), fill=(91,47,39))
+            draw.rectangle((48,230,672,870), fill=(153,55,43), outline=(68,35,32), width=8)
+            draw.rectangle((72,260,648,835), fill=(88,31,33), outline=(238,177,79), width=6)
+            for row in range(2):
+                y=365+row*225
+                draw.rectangle((95,y,625,y+12), fill=(232,173,68))
+                for col in range(5):
+                    cx=145+col*108
+                    draw.arc((cx-28,y-92,cx+28,y+12), 0, 180, fill=(255,211,112), width=8)
+                    draw.ellipse((cx-16,y-86,cx+16,y-54), fill=(255,209,104), outline=(80,42,25), width=3)
+                    draw.line((cx,y-53,cx,y-5), fill=(255,211,112), width=6)
+            draw.rounded_rectangle((80,875,640,1010), radius=18, fill=(121,69,43), outline=ink, width=7)
+            if index == 2:
+                draw.rounded_rectangle((185,105,535,210), radius=15, fill=(255,239,202), outline=(70,42,30), width=5)
+                draw.text((225,130), "1 പവൻ = ₹1", font=get_font(38,True), fill=(174,35,28))
+        elif index == 3:
+            draw.rectangle((0,0,720,1280), fill=(191,211,219))
+            draw.rectangle((0,880,720,1280), fill=(116,92,73))
+            draw.rectangle((45,190,675,880), fill=(228,225,207), outline=ink, width=7)
+            draw.rectangle((75,230,645,310), fill=(196,47,34))
+            draw.text((180,246), "GOLD LOAN", font=get_font(42,True), fill=(255,229,156))
+            draw.rectangle((90,430,630,490), fill=(125,77,48), outline=ink, width=5)
+            draw.rectangle((125,490,160,865), fill=(96,59,42))
+            draw.rectangle((560,490,595,865), fill=(96,59,42))
+            draw.rounded_rectangle((220,560,500,720), radius=12, fill=(250,247,233), outline=ink, width=5)
+            draw.text((255,590), "LOAN VALUE", font=get_font(26,True), fill=(65,65,65))
+            draw.text((280,635), "₹1 ?", font=get_font(48,True), fill=(186,38,30))
+            draw.ellipse((530,350,620,440), fill=(83,91,102), outline=ink, width=6)
+            draw.line((575,395,575,350), fill=(45,49,58), width=8)
+            draw.line((575,395,615,415), fill=(45,49,58), width=8)
+        elif index == 4:
+            draw.rectangle((0,0,720,1280), fill=(247,224,180))
+            draw.rectangle((0,900,720,1280), fill=(145,85,55))
+            draw.rectangle((70,260,650,900), fill=(255,241,211), outline=ink, width=7)
+            draw.rectangle((120,340,310,560), fill=(111,166,194), outline=ink, width=7)
+            draw.line((215,340,215,560), fill=ink, width=5)
+            draw.line((120,450,310,450), fill=ink, width=5)
+            draw.rounded_rectangle((390,590,600,790), radius=18, fill=(128,75,49), outline=ink, width=6)
+            draw.text((420,635), "SAVINGS", font=get_font(26,True), fill=cream)
+            draw.ellipse((455,690,535,770), fill=(255,205,76), outline=ink, width=5)
+            draw.text((476,706), "₹", font=get_font(42,True), fill=(80,45,20))
+        else:
+            draw.rectangle((0,0,720,1280), fill=(255,192,65))
+            for k in range(9):
+                xx=360+k*100*math.cos(k*math.tau/9)
+                yy=600+k*100*math.sin(k*math.tau/9)
+                draw.line((360,610,xx,yy), fill=(255,226,139), width=8)
+            draw.ellipse((245,365,475,595), fill=(255,220,120), outline=(108,75,36), width=9)
+            draw.text((295,410), "1", font=get_font(130,True), fill=(122,74,25))
+            draw.rounded_rectangle((120,760,600,920), radius=25, fill=(255,247,224), outline=ink, width=6)
+            draw.text((170,795), "നിങ്ങൾ എന്ത് വാങ്ങും?", font=get_font(34,True), fill=(70,45,35))
+        return labels[index]
+
+    if battery:
+        labels=["PHONE PROBLEM","SCREEN BRIGHTNESS","GAMING & VIDEO","LOW SIGNAL","BATTERY SETTINGS","QUICK TIP"]
+        draw.rectangle((0,0,720,1280), fill=(235,220,191))
+        draw.rectangle((0,900,720,1280), fill=(130,85,58))
+        if index in (0,1,2,5):
+            # Oversized smartphone with a readable battery illustration.
+            draw.rounded_rectangle((220,250,500,850), radius=42, fill=(32,38,48), outline=(20,20,25), width=10)
+            draw.rounded_rectangle((242,290,478,810), radius=20, fill=(177,211,224))
+            draw.rounded_rectangle((305,325,415,380), radius=12, fill=(242,245,238), outline=ink, width=3)
+            draw.rectangle((330,342,390,363), fill=(65,174,91))
+            if index == 1:
+                draw.ellipse((290,470,430,610), fill=(255,214,93), outline=ink, width=5)
+                draw.text((330,510), "☀", font=get_font(62,True), fill=(110,75,35))
+            elif index == 2:
+                draw.rectangle((260,430,460,650), fill=(50,78,130))
+                draw.polygon([(330,480),(330,600),(415,540)], fill=(255,255,255))
+            elif index == 5:
+                draw.text((280,500), "BATTERY", font=get_font(28,True), fill=(35,55,65))
+                draw.text((320,560), "100%", font=get_font(48,True), fill=(35,125,70))
+        elif index == 3:
+            draw.line((560,300,560,890), fill=(65,65,68), width=14)
+            for yy in (390,470,550):
+                draw.arc((410,yy-70,710,yy+70),200,340,fill=(62,130,180),width=9)
+            draw.ellipse((530,260,590,320), fill=(220,70,60), outline=ink, width=4)
+        else:
+            draw.rounded_rectangle((100,420,620,760), radius=24, fill=(47,65,79), outline=ink, width=6)
+            draw.text((165,480), "BATTERY USAGE", font=get_font(36,True), fill=cream)
+            for k,ww in enumerate((330,250,180)):
+                yy=560+k*55
+                draw.rounded_rectangle((165,yy,165+ww,yy+22), radius=10, fill=(77,190,125))
+        return labels[index]
+
+    if internet:
+        labels=["NO INTERNET","MESSAGES","ONLINE PAYMENT","NETWORK TOWER","OFFLINE PLAN","STAY CONNECTED"]
+        draw.rectangle((0,0,720,1280), fill=(193,218,231))
+        draw.rectangle((0,900,720,1280), fill=(111,137,103))
+        if index in (0,1,2,4,5):
+            draw.rounded_rectangle((210,250,510,830), radius=40, fill=(32,38,48), outline=ink, width=8)
+            draw.rounded_rectangle((232,290,488,790), radius=20, fill=(235,242,235))
+            if index == 1:
+                for k in range(3):
+                    draw.rounded_rectangle((260,390+k*95,450,445+k*95), radius=15, fill=(130,190,220))
+            elif index == 2:
+                draw.text((285,420), "UPI", font=get_font(70,True), fill=(40,120,90))
+                draw.text((280,540), "₹ 250", font=get_font(45,True), fill=(45,55,65))
+            else:
+                draw.text((275,430), "OFFLINE", font=get_font(35,True), fill=(45,65,80))
+                draw.line((280,540,440,540), fill=(205,70,60), width=8)
+        elif index == 3:
+            draw.line((550,250,550,900), fill=(62,67,75), width=14)
+            for yy in (390,500,610):
+                draw.arc((390,yy-90,710,yy+90),200,340,fill=(55,135,190),width=10)
+        else:
+            draw.rectangle((80,420,640,800), fill=(220,235,235), outline=ink, width=6)
+        return labels[index]
+
+    if rain:
+        labels=["RAIN CLOUD","ROOFTOP","SOIL","GROUNDWATER","RIVER","SAVE WATER"]
+        draw.rectangle((0,0,720,1280), fill=(164,202,220))
+        draw.rectangle((0,900,720,1280), fill=(107,139,91))
+        if index == 0:
+            for cx in (210,330,450):
+                draw.ellipse((cx-100,330,cx+80,490), fill=(90,112,132))
+            for k in range(9):
+                xx=100+k*65
+                draw.line((xx,510,xx-18,590), fill=(60,135,205), width=8)
+        elif index == 1:
+            draw.rectangle((90,450,630,850), fill=(225,188,137), outline=ink, width=6)
+            draw.polygon([(50,470),(360,250),(670,470)], fill=(150,72,50), outline=ink)
+            for k in range(5):
+                xx=150+k*95
+                draw.line((xx,470,xx-15,560), fill=(70,150,210), width=7)
+        elif index in (2,3):
+            draw.rectangle((0,500,720,910), fill=(116,78,50))
+            for k in range(8):
+                xx=40+k*90
+                draw.ellipse((xx,620+(k%2)*65,xx+55,675+(k%2)*65), fill=(83,58,40))
+            if index == 3:
+                draw.rectangle((0,760,720,900), fill=(67,143,190))
+                for k in range(7):
+                    draw.arc((k*110,770,k*110+90,815),0,180,fill=(185,225,240),width=4)
+        elif index == 4:
+            draw.polygon([(0,600),(180,540),(360,620),(540,550),(720,600),(720,950),(0,950)], fill=(55,142,188))
+            for k in range(8):
+                xx=(k*97+frame*2)%720
+                draw.arc((xx,700,xx+90,730),0,180,fill=(190,226,238),width=4)
+        else:
+            draw.ellipse((210,330,510,630), fill=(77,167,209), outline=ink, width=8)
+            draw.text((290,420), "SAVE", font=get_font(58,True), fill=(255,255,255))
+        return labels[index]
+
+    if fuel:
+        labels=["PETROL PUMP","FUEL DELIVERY","TRANSPORT","ELECTRIC VEHICLE","SUPPLY CHAIN","YOUR CHOICE"]
+        draw.rectangle((0,0,720,1280), fill=(202,218,221))
+        draw.rectangle((0,900,720,1280), fill=(87,100,88))
+        if index in (0,1,2,3,4):
+            draw.rectangle((65,300,655,850), fill=(235,230,208), outline=ink, width=7)
+            draw.rectangle((65,300,655,390), fill=(194,42,35))
+            draw.text((170,320), "FUEL STATION", font=get_font(38,True), fill=(255,238,190))
+            draw.rounded_rectangle((180,470,340,760), radius=20, fill=(52,62,70), outline=ink, width=6)
+            draw.rectangle((210,510,310,600), fill=(90,180,190))
+            draw.line((340,560,440,680), fill=ink, width=12)
+            draw.rounded_rectangle((430,650,485,820), radius=14, fill=(194,48,38), outline=ink, width=5)
+        return labels[index]
+
+    if shop:
+        labels=["LOCAL SHOP","GOODS","DELIVERY","CUSTOMERS","DAILY NEEDS","TAKEAWAY"]
+        draw.rectangle((0,0,720,1280), fill=(244,216,173))
+        draw.rectangle((0,900,720,1280), fill=(142,94,58))
+        draw.rectangle((55,250,665,880), fill=(222,183,133), outline=ink, width=7)
+        draw.rectangle((55,250,665,360), fill=(180,48,38))
+        draw.text((180,280), "LOCAL SHOP", font=get_font(38,True), fill=(255,239,196))
+        for row in range(2):
+            y=500+row*145
+            draw.rectangle((100,y,620,y+12), fill=(95,62,42))
+            for col in range(5):
+                xx=130+col*95
+                draw.rounded_rectangle((xx,y-75,xx+55,y), radius=8, fill=[(226,102,63),(87,160,99),(234,186,72)][col%3], outline=ink, width=3)
+        return labels[index]
+
+    # General scene-specific fallback: indoor room, street, classroom, or outdoor landscape.
+    labels=["INTRO","EXPLANATION","HOW IT WORKS","REAL-LIFE EFFECT","SOLUTION","FINAL QUESTION"]
+    if index in (0,1,2):
+        draw.rectangle((0,0,720,1280), fill=(239,219,181))
+        draw.rectangle((0,900,720,1280), fill=(137,91,60))
+        draw.rectangle((65,230,655,900), fill=(250,238,210), outline=ink, width=7)
+        draw.rectangle((105,300,300,520), fill=(133,184,204), outline=ink, width=6)
+        draw.line((200,300,200,520), fill=ink, width=4)
+        draw.line((105,410,300,410), fill=ink, width=4)
+        draw.rounded_rectangle((365,610,600,790), radius=15, fill=(139,83,53), outline=ink, width=5)
+    else:
+        draw.rectangle((0,0,720,1280), fill=(170,207,222))
+        draw.rectangle((0,900,720,1280), fill=(89,135,92))
+        draw.polygon([(0,780),(150,660),(310,760),(500,640),(720,760),(720,930),(0,930)], fill=(104,153,110))
+    return labels[index]
+
+
 def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames: int, output_frame: int):
     """Render a cinematic scene with a location change, parallax, character acting and subtitles."""
     phase = (frame / max(scene_frames, 1)) * math.tau
@@ -91,75 +313,9 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     action_pulse = (0.5 + 0.5 * math.sin(phase * 1.5))
     ink = (28, 35, 42)
 
-    # Six distinct locations create a clear visual progression through the story.
-    scenes = [
-        {"sky": (26, 39, 70), "ground": (43, 67, 65), "wall": (79, 87, 111), "roof": (42, 48, 70), "name": "NIGHT"},
-        {"sky": (247, 177, 113), "ground": (116, 158, 95), "wall": (239, 202, 145), "roof": (130, 65, 48), "name": "TEA SHOP"},
-        {"sky": (132, 196, 215), "ground": (77, 143, 88), "wall": (224, 205, 166), "roof": (113, 65, 46), "name": "VILLAGE ROAD"},
-        {"sky": (75, 104, 145), "ground": (45, 80, 78), "wall": (102, 117, 133), "roof": (48, 57, 72), "name": "BUS STOP"},
-        {"sky": (246, 166, 107), "ground": (83, 132, 80), "wall": (229, 188, 135), "roof": (117, 61, 46), "name": "RIVERSIDE"},
-        {"sky": (31, 37, 64), "ground": (39, 70, 61), "wall": (78, 83, 108), "roof": (39, 44, 65), "name": "THE REVEAL"},
-    ][index % 6]
-
-    sky = Image.new("RGB", (WIDTH, HEIGHT), scenes["sky"])
+    sky = Image.new("RGB", (WIDTH, HEIGHT), (238, 218, 185))
     draw = ImageDraw.Draw(sky)
-    # Atmospheric sky glow and horizon.
-    for radius in range(260, 0, -16):
-        alpha = (260 - radius) / 260
-        color = tuple(int(scenes["sky"][c] * (1-alpha) + (255, 205, 143)[c] * alpha * 0.30) for c in range(3))
-        draw.ellipse((470-radius, 300-radius, 470+radius, 300+radius), fill=color)
-    draw.rectangle((0, 835, WIDTH, HEIGHT), fill=scenes["ground"])
-
-    # Parallax palms and distant hills.
-    draw.polygon([(0, 830), (0, 735), (110, 690), (230, 760), (360, 700), (520, 765), (720, 700), (720, 850)], fill=tuple(max(0, c-18) for c in scenes["ground"]))
-    for palm_x in (-20, 680):
-        sway = int(12 * math.sin(phase + palm_x))
-        draw.line((palm_x, 850, palm_x+22, 430), fill=(91, 66, 47), width=14)
-        crown = (palm_x+22, 430)
-        for a in (-2.8, -2.25, -1.7, -1.15, -0.6):
-            ex = crown[0] + int(135 * math.cos(a) + sway)
-            ey = crown[1] + int(78 * math.sin(a))
-            draw.line((crown[0], crown[1], ex, ey), fill=(35, 105, 66), width=12)
-
-    # Location-specific architecture and props.
-    if index in (0, 5):
-        draw.rectangle((65-camera, 510, 655-camera, 925), fill=scenes["wall"], outline=(55, 48, 51), width=6)
-        draw.polygon([(28-camera, 530), (360-camera, 325), (692-camera, 530)], fill=scenes["roof"], outline=(48, 42, 46))
-        draw.rectangle((270-camera, 690, 410-camera, 925), fill=(85, 57, 47), outline=(42, 35, 34), width=5)
-        draw.rectangle((105-camera, 650, 220-camera, 760), fill=(115, 171, 193), outline=(50, 46, 44), width=5)
-        draw.line((162-camera, 650, 162-camera, 760), fill=(50, 46, 44), width=4)
-        draw.line((105-camera, 705, 220-camera, 705), fill=(50, 46, 44), width=4)
-    elif index == 1:
-        draw.rectangle((55-camera, 545, 665-camera, 925), fill=scenes["wall"], outline=(65, 51, 42), width=6)
-        draw.polygon([(25-camera, 550), (360-camera, 355), (695-camera, 550)], fill=scenes["roof"])
-        draw.rectangle((95-camera, 725, 625-camera, 780), fill=(99, 58, 40))
-        draw.rectangle((145-camera, 620, 220-camera, 740), fill=(104, 67, 48))
-        draw.rounded_rectangle((420-camera, 580, 625-camera, 670), radius=12, fill=(248, 227, 172), outline=(67, 52, 39), width=4)
-        draw.text((442-camera, 606), "ചായക്കട", font=get_font(25), fill=(50, 42, 35))
-        # Steam from a tea glass.
-        for s in range(3):
-            sx = 510 + s*14 + int(4*math.sin(phase*2+s))
-            draw.arc((sx, 520, sx+18, 570), 70, 260, fill=(245, 238, 220), width=3)
-    elif index == 2:
-        draw.line((0, 820, 720, 820), fill=(210, 190, 151), width=90)
-        draw.rectangle((55-camera, 580, 245-camera, 810), fill=(229, 191, 143), outline=(80, 62, 47), width=5)
-        draw.polygon([(35-camera, 590), (150-camera, 490), (265-camera, 590)], fill=(126, 65, 48))
-        draw.rectangle((480-camera, 640, 650-camera, 820), fill=(189, 205, 175), outline=(65, 74, 56), width=5)
-        draw.ellipse((525-camera, 700, 565-camera, 740), fill=(244, 212, 131))
-    elif index == 3:
-        draw.rectangle((65-camera, 670, 655-camera, 710), fill=(57, 67, 78))
-        draw.rectangle((90-camera, 705, 120-camera, 925), fill=(48, 52, 60))
-        draw.rectangle((600-camera, 705, 630-camera, 925), fill=(48, 52, 60))
-        draw.rounded_rectangle((150-camera, 560, 570-camera, 665), radius=16, fill=(46, 59, 76), outline=(220, 193, 146), width=4)
-        draw.text((190-camera, 592), "BUS STOP", font=get_font(30, True), fill=(255, 238, 190))
-        draw.line((0, 850, 720, 850), fill=(185, 173, 147), width=7)
-    else:
-        draw.polygon([(0, 810), (170, 770), (360, 830), (540, 760), (720, 810), (720, 930), (0, 930)], fill=(47, 109, 112))
-        for ripple in range(5):
-            rx = int((frame*3 + ripple*145) % 760)
-            draw.arc((rx-45, 825+ripple*13, rx+45, 845+ripple*13), 0, 180, fill=(161, 209, 195), width=3)
-        draw.rectangle((60-camera, 570, 260-camera, 830), fill=scenes["wall"], outline=(62, 52, 48), width=5)
-        draw.polygon([(35-camera, 580), (160-camera, 475), (285-camera, 580)], fill=scenes["roof"])
+    scene_label = draw_story_background(draw, index, line, title, frame, phase, camera)
 
     # Floating dust/firefly particles add depth and motion between scene cuts.
     for particle in range(9):
@@ -267,7 +423,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     draw.rounded_rectangle((28, 30, 692, 124), radius=22, fill=(17, 27, 43), outline=(246, 190, 87), width=3)
     draw.text((48, 54), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(17, 27, 43))
     draw.rounded_rectangle((515, 142, 680, 190), radius=14, fill=(17, 27, 43))
-    draw.text((535, 151), scenes["name"], font=get_font(18, True), fill=(255, 213, 125))
+    draw.text((535, 151), scene_label, font=get_font(18, True), fill=(255, 213, 125))
     accent_colors = [(255, 202, 82), (102, 220, 231), (255, 132, 119), (160, 232, 164), (255, 202, 82), (190, 166, 255)]
     accent = accent_colors[index % len(accent_colors)]
     draw.rounded_rectangle((24, 1038, 696, 1238), radius=25, fill=(15, 24, 37), outline=accent, width=4)
