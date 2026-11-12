@@ -59,76 +59,70 @@ def open_with_retries(request: urllib.request.Request, timeout: int, label: str)
 
 
 def generate_story() -> tuple[str, list[str]]:
-    """Generate a structured Malayalam story using the OpenAI API."""
-    prompt = """
-Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
-Choose a fresh curiosity-driven topic such as surprising Kerala/India what-if scenarios, money and
-everyday economics, science and technology curiosities, useful facts, or a short mystery/comedy twist.
-Treat hypothetical scenarios as imaginary, never real news or predictions. For factual topics, do not
-invent figures, dates, quotes, statistics, or claims. Use natural spoken Kerala Malayalam, not textbook
-Malayalam. Start with a powerful question in the first scene, explain clearly with cause and effect,
-avoid filler and misinformation, and end with a memorable takeaway plus a short audience question.
-Create exactly 6 concise Malayalam narration lines for 45-60 seconds total. Return valid JSON only:
-{"title":"...","scenes":["...","...","...","...","...","..."]}
-No markdown fences or explanations.
-"""
-    brief_path = OUT / "opencode_brief.json"
+    """Generate a six-scene Malayalam story using Gemini text generation."""
+    brief_path = OUT / "creative_brief.json"
     if not brief_path.is_file():
-        raise RuntimeError("OpenCode brief is missing. The OpenCode director step must run before video rendering.")
+        raise RuntimeError("Gemini creative brief is missing.")
     try:
         brief = json.loads(brief_path.read_text(encoding="utf-8"))
         topic = str(brief["topic"]).strip()
         angle = str(brief["angle"]).strip()
         hook = str(brief["hook"]).strip()
     except (OSError, KeyError, TypeError, ValueError) as error:
-        raise RuntimeError("OpenCode returned an invalid creative brief JSON.") from error
+        raise RuntimeError("Gemini creative brief JSON is invalid.") from error
     if not topic or not angle or not hook:
-        raise RuntimeError("OpenCode brief validation failed: topic, angle, and hook are required.")
-    prompt += (
-        "\n\nOPENCODE CREATIVE DIRECTOR BRIEF (follow this direction):"
-        f"\nTopic: {topic}\nAngle: {angle}\nOpening hook idea: {hook}"
-        "\nBuild the six-scene story around this brief. Keep it accurate and label hypotheticals clearly."
-    )
-    print(f"OpenCode creative brief loaded: {topic}")
+        raise RuntimeError("Creative brief validation failed.")
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    prompt = f"""
+Create ONE highly engaging 45-60 second Malayalam vertical stickman video for viewers in Kerala.
+Use natural spoken Kerala Malayalam, not textbook Malayalam. Start with a powerful question in
+the first scene, explain clearly with cause and effect, avoid filler and misinformation, and end
+with a memorable takeaway plus a short audience question. Clearly label hypothetical scenarios.
+For factual topics, do not invent figures, dates, quotes, statistics, or claims.
+Creative brief:
+Topic: {topic}
+Angle: {angle}
+Opening hook: {hook}
+Create exactly 6 concise Malayalam narration lines. Return valid JSON only:
+{{"title":"...","scenes":["...","...","...","...","...","..."]}}
+"""
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is missing. Add it in GitHub Settings > Secrets and variables > Actions.")
-    model = os.getenv("OPENAI_STORY_MODEL", "gpt-4o-mini")
+        raise RuntimeError("GEMINI_API_KEY is missing.")
+    model = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
     payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "Write original, natural spoken Kerala Malayalam scripts. Return valid JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.85,
-        "max_completion_tokens": 1800,
-        "response_format": {"type": "json_object"},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.85,
+            "maxOutputTokens": 1800,
+            "responseMimeType": "application/json"
+        }
     }
     request = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST",
     )
-    with open_with_retries(request, timeout=120, label=f"OpenAI story ({model})") as response:
+    with open_with_retries(request, timeout=120, label=f"Gemini story ({model})") as response:
         result = json.loads(response.read().decode("utf-8"))
     try:
-        story = json.loads(result["choices"][0]["message"]["content"])
+        content = result["candidates"][0]["content"]["parts"][0]["text"]
+        story = json.loads(content)
         title = str(story["title"]).strip()
         scenes = [str(item).strip() for item in story["scenes"]]
     except (KeyError, IndexError, TypeError, ValueError) as error:
-        raise RuntimeError("OpenAI returned invalid story JSON.") from error
+        raise RuntimeError("Gemini returned invalid story JSON.") from error
     if not title or len(scenes) != 6 or any(not line for line in scenes):
-        raise RuntimeError("OpenAI story validation failed: expected a title and exactly 6 non-empty scenes.")
+        raise RuntimeError("Gemini story validation failed: expected a title and exactly 6 non-empty scenes.")
     if any(len(line) > 240 for line in scenes):
-        raise RuntimeError("OpenAI story validation failed: each scene must be 240 characters max.")
+        raise RuntimeError("Gemini story validation failed: each scene must be 240 characters max.")
     OUT.mkdir(exist_ok=True)
     (OUT / "story.json").write_text(
         json.dumps({"title": title, "scenes": scenes}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"Story generated using OpenAI model: {model} — {title}")
+    print(f"Story generated using Gemini model: {model} — {title}")
     return title, scenes
 
 def find_font(bold: bool = False) -> str | None:
@@ -336,12 +330,9 @@ def create_voice_gemini(text: str, destination: Path) -> None:
     )
     payload = {
         "model": model,
-        "input": [{"type": "user_input", "content": [{
-            "type": "text", "text": text,
-            "annotations": [{"type": "speech_metadata", "style": style}]
-        }]}],
+        "input": f"{style}\nRead the following Malayalam narration exactly as written, with no translation: {text}",
         "response_format": {"type": "audio"},
-        "generation_config": {"speech_config": [{"voice": voice}]}
+        "generation_config": {"speech_config": [{"voice": voice, "language": "ml-IN"}]}
     }
     request = urllib.request.Request(
         "https://generativelanguage.googleapis.com/v1beta/interactions",
@@ -422,12 +413,15 @@ def create_voice_elevenlabs(text: str, destination: Path) -> None:
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """Generate Malayalam narration using ElevenLabs only; Gemini TTS is intentionally disabled."""
-    if not os.getenv("ELEVENLABS_API_KEY") or not os.getenv("ELEVENLABS_VOICE_ID"):
-        raise RuntimeError(
-            "ElevenLabs is not configured. Add ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID "
-            "in GitHub Actions repository secrets."
-        )
+    """Use Gemini TTS as primary and ElevenLabs as a verified-on-success fallback."""
+    if os.getenv("GEMINI_API_KEY"):
+        try:
+            create_voice_gemini(text, destination)
+            return
+        except Exception as error:
+            print(f"Gemini TTS failed; trying ElevenLabs fallback. Reason: {type(error).__name__}: {error}")
+    else:
+        print("GEMINI_API_KEY is not configured; using ElevenLabs fallback.")
     create_voice_elevenlabs(text, destination)
 
 def probe_duration(audio: Path) -> float:
