@@ -8,22 +8,31 @@ on:
         required: true
         type: string
         default: "43255563877"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-buffer.yml"
+  workflow_run:
+    workflows: ["Daily Malayalam Stickman Creator"]
+    types: [completed]
 
 permissions:
   actions: read
   contents: write
 
 concurrency:
-  group: buffer-publish-${{ inputs.source_run_id }}
+  group: buffer-publish-${{ github.event.workflow_run.id || github.event.inputs.source_run_id || '43255563877' }}
   cancel-in-progress: false
 
 jobs:
   publish:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       VIDEO_ARTIFACT_DIR: ${{ runner.temp }}/buffer-artifact
+      SOURCE_RUN_ID: ${{ github.event.workflow_run.id || github.event.inputs.source_run_id || '43255563877' }}
 
     steps:
       - name: Checkout publishing script
@@ -41,7 +50,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: malayalam-short-video
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           path: ${{ runner.temp }}/buffer-artifact
