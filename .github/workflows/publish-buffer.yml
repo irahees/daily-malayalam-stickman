@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 20
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-      VIDEO_ARTIFACT_DIR: ./video-artifact
+      VIDEO_ARTIFACT_DIR: ${{ runner.temp }}/buffer-artifact
 
     steps:
       - name: Checkout publishing script
@@ -44,39 +44,35 @@ jobs:
           run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          path: ./video-artifact
+          path: ${{ runner.temp }}/buffer-artifact
 
-      - name: Prepare public video release asset
-        id: release
+      - name: Prepare the video and story for publishing
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release-assets
-          VIDEO="$(find ./video-artifact -type f -name '*.mp4' -print -quit)"
-          if [ -z "$VIDEO" ]; then
-            echo "::error::No MP4 found in the selected artifact."
+          mkdir -p "${{ runner.temp }}/buffer-media"
+          VIDEO="$(find "${VIDEO_ARTIFACT_DIR}" -type f -name '*.mp4' -print -quit)"
+          STORY="$(find "${VIDEO_ARTIFACT_DIR}" -type f -name 'story.json' -print -quit)"
+          if [ -z "$VIDEO" ] || [ -z "$STORY" ]; then
+            echo "::error::The selected artifact must contain one MP4 and story.json."
             exit 1
           fi
-          cp "$VIDEO" release-assets/daily_malayalam_stickman.mp4
-          if ! find ./video-artifact -type f -name 'story.json' -print -quit | grep -q .; then
-            echo "::error::story.json missing from the selected artifact."
-            exit 1
-          fi
-          echo "tag=buffer-publish-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+          cp "$VIDEO" "${{ runner.temp }}/buffer-media/daily_malayalam_stickman.mp4"
+          cp "$STORY" "${{ runner.temp }}/buffer-media/story.json"
+          cp src/publish_buffer.py "${{ runner.temp }}/publish_buffer.py"
 
-      - name: Host video at a public HTTPS URL
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          name: Malayalam Short ${{ inputs.source_run_id }}
-          body: "Public media asset used by Buffer for the requested Instagram Reel and YouTube Short."
-          files: release-assets/daily_malayalam_stickman.mp4
-          fail_on_unmatched_files: true
-          make_latest: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Host the video at a direct public HTTPS URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --orphan buffer-media
+          git rm -rf . >/dev/null 2>&1 || true
+          cp "${{ runner.temp }}/buffer-media/daily_malayalam_stickman.mp4" ./daily_malayalam_stickman.mp4
+          git add daily_malayalam_stickman.mp4
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Update public video media for Buffer"
+          git push origin HEAD:buffer-media --force
 
       - name: Publish immediately through Buffer
         env:
-          BUFFER_VIDEO_URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.tag }}/daily_malayalam_stickman.mp4
-        run: python src/publish_buffer.py
+          BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman.mp4
+        run: python "${{ runner.temp }}/publish_buffer.py"
