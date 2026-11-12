@@ -56,8 +56,11 @@ jobs:
             exit 1
           fi
           cp src/publish_buffer.py "$RUNNER_TEMP/publish_buffer.py"
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg
           mkdir -p "$RUNNER_TEMP/buffer-media"
-          cp "$VIDEO" "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
+          ffmpeg -y -i "$VIDEO" -map 0:v:0 -map '0:a?' -vf "fps=30" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
+          ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
       - name: Publish video to public media branch
         shell: bash
         run: |
