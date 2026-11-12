@@ -169,39 +169,91 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         glow = int(125 + 90 * (0.5 + 0.5 * math.sin(phase + particle)))
         draw.ellipse((px-radius, py-radius, px+radius, py+radius), fill=(glow, min(245, glow+22), 170))
 
-    # Character shadow and expressive stick-figure actor with a consistent costume.
-    shadow_width = int(72 + 14 * action_pulse)
-    draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1150), fill=(35, 53, 47))
-    draw.ellipse((x-48, head_y-48, x+48, head_y+48), fill=(255, 222, 181), outline=ink, width=8)
-    # Hair and eyebrows.
-    draw.arc((x-47, head_y-57, x+47, head_y+15), 185, 350, fill=(45, 35, 30), width=12)
-    eye_y = head_y - 7
-    draw.ellipse((x-19, eye_y, x-9, eye_y+12), fill=ink)
-    draw.ellipse((x+9, eye_y, x+19, eye_y+12), fill=ink)
-    if index in (0, 5):
-        draw.arc((x-18, head_y+9, x+18, head_y+36), 195, 345, fill=ink, width=4)
-    else:
-        draw.arc((x-17, head_y+3, x+17, head_y+27), 5, 175, fill=ink, width=4)
+    # Polished 2D cartoon host: rounded silhouette, layered hair, expressive face,
+    # outlined clothes, hands and shoes. Subtle motion keeps the character alive.
+    shadow_width = int(76 + 12 * action_pulse)
+    draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1152), fill=(30, 42, 48))
+    skin = (224, 157, 112)
+    skin_light = (246, 190, 145)
+    outline = (38, 35, 43)
+    shirt = (37, 116, 146)
+    shirt_light = (66, 157, 178)
+    trousers = (43, 51, 70)
 
-    shoulder_y = head_y + 52
-    hip_y = head_y + 225
-    draw.line((x, shoulder_y, x+body_lean, hip_y), fill=(27, 42, 59), width=18)
-    draw.line((x, shoulder_y+15, x+body_lean, hip_y-5), fill=(61, 147, 181), width=11)
-    arm = int(42 * math.sin(phase * 2))
+    # Legs and rounded shoes.
+    leg_swing = int(24 * math.sin(phase * 1.65))
+    draw.line((x-20, 900, x-38+leg_swing, 1082), fill=outline, width=34)
+    draw.line((x+20, 900, x+40-leg_swing, 1082), fill=outline, width=34)
+    draw.line((x-20, 900, x-38+leg_swing, 1080), fill=trousers, width=25)
+    draw.line((x+20, 900, x+40-leg_swing, 1080), fill=trousers, width=25)
+    draw.rounded_rectangle((x-77+leg_swing, 1068, x-20+leg_swing, 1100), radius=14, fill=outline)
+    draw.rounded_rectangle((x+18-leg_swing, 1068, x+78-leg_swing, 1100), radius=14, fill=outline)
+    draw.rounded_rectangle((x-72+leg_swing, 1065, x-25+leg_swing, 1091), radius=11, fill=(239, 231, 215))
+    draw.rounded_rectangle((x+23-leg_swing, 1065, x+73-leg_swing, 1091), radius=11, fill=(239, 231, 215))
+
+    # Neck and shirt torso.
+    draw.rounded_rectangle((x-24, 730+bob, x+24, 805+bob), radius=13, fill=outline)
+    draw.rounded_rectangle((x-18, 735+bob, x+18, 800+bob), radius=10, fill=skin)
+    draw.rounded_rectangle((x-83+body_lean, 780+bob, x+83+body_lean, 950+bob), radius=42, fill=outline)
+    draw.rounded_rectangle((x-73+body_lean, 790+bob, x+73+body_lean, 940+bob), radius=35, fill=shirt)
+    draw.arc((x-48+body_lean, 788+bob, x+48+body_lean, 852+bob), 5, 175, fill=shirt_light, width=7)
+    draw.line((x-48+body_lean, 850+bob, x-60+body_lean, 915+bob), fill=shirt_light, width=4)
+
+    # Arms with rounded sleeves and hands; gestures vary by scene.
+    arm_wave = int(28 * math.sin(phase * 1.8))
     if index in (1, 5):
-        draw.line((x, shoulder_y+28, x-62, shoulder_y+100+arm), fill=ink, width=11)
-        draw.line((x, shoulder_y+28, x+100, shoulder_y-40-arm), fill=ink, width=11)
+        left_hand = (x-122, 880+arm_wave)
+        right_hand = (x+112, 748-arm_wave)
     elif index == 3:
-        draw.line((x, shoulder_y+28, x-75, shoulder_y+100-arm), fill=ink, width=11)
-        draw.line((x, shoulder_y+28, x+78, shoulder_y+95+arm), fill=ink, width=11)
+        left_hand = (x-116, 885-arm_wave)
+        right_hand = (x+118, 870+arm_wave)
     else:
-        draw.line((x, shoulder_y+28, x-88, shoulder_y+110-arm), fill=ink, width=11)
-        draw.line((x, shoulder_y+28, x+88, shoulder_y+110+arm), fill=ink, width=11)
-    leg = int(42 * math.sin(phase * 1.65))
-    stride_lift = int(13 * max(0, math.sin(phase * 1.65)))
-    stride_lift_r = int(13 * max(0, -math.sin(phase * 1.65)))
-    draw.line((x+body_lean, hip_y, x-62+leg, hip_y+145-stride_lift), fill=ink, width=13)
-    draw.line((x+body_lean, hip_y, x+62-leg, hip_y+145-stride_lift_r), fill=ink, width=13)
+        left_hand = (x-120, 884-arm_wave)
+        right_hand = (x+120, 884+arm_wave)
+    for side, hand in ((-1, left_hand), (1, right_hand)):
+        shoulder = (x+side*61+body_lean, 815+bob)
+        elbow = (int((shoulder[0]+hand[0])/2), int((shoulder[1]+hand[1])/2))
+        draw.line((shoulder, elbow), fill=outline, width=35)
+        draw.line((shoulder, elbow), fill=shirt, width=25)
+        draw.line((elbow, hand), fill=outline, width=27)
+        draw.line((elbow, hand), fill=skin, width=18)
+        hx, hy = hand
+        draw.ellipse((hx-15, hy-15, hx+15, hy+15), fill=outline)
+        draw.ellipse((hx-11, hy-11, hx+11, hy+11), fill=skin_light)
+
+    # Ears, face and hair silhouette.
+    face_y = 665 + bob
+    draw.ellipse((x-66, face_y-8, x-34, face_y+42), fill=outline)
+    draw.ellipse((x+34, face_y-8, x+66, face_y+42), fill=outline)
+    draw.ellipse((x-60, face_y-12, x+60, face_y+112), fill=outline)
+    draw.ellipse((x-53, face_y-7, x+53, face_y+104), fill=skin_light)
+    # Hair cap with a softly jagged fringe.
+    draw.pieslice((x-60, face_y-36, x+60, face_y+70), 180, 360, fill=outline)
+    draw.polygon([
+        (x-57, face_y+7), (x-45, face_y-14), (x-29, face_y+2),
+        (x-11, face_y-17), (x+7, face_y+1), (x+27, face_y-13),
+        (x+47, face_y+8), (x+52, face_y+24), (x-53, face_y+24)
+    ], fill=(48, 38, 36))
+    # Large animated eyes and eyebrows.
+    eye_y = face_y+40
+    blink = 0.18 if (int(phase*3) % 19 == 0) else 1.0
+    for eye_x in (x-23, x+23):
+        draw.ellipse((eye_x-14, eye_y-15*blink, eye_x+14, eye_y+15*blink), fill=(255,255,255), outline=outline, width=4)
+        if blink > 0.5:
+            pupil_x = eye_x + int(3*math.sin(phase))
+            draw.ellipse((pupil_x-6, eye_y-8, pupil_x+6, eye_y+8), fill=(42, 48, 60))
+            draw.ellipse((pupil_x-2, eye_y-6, pupil_x+1, eye_y-2), fill=(255,255,255))
+        draw.arc((eye_x-17, eye_y-31, eye_x+17, eye_y-12), 195, 345, fill=outline, width=5)
+    # Nose and talking mouth; mouth opens rhythmically for a lively narrator.
+    draw.ellipse((x-4, face_y+62, x+4, face_y+70), fill=(190, 116, 87))
+    mouth_open = int(5 + 5 * (0.5 + 0.5 * math.sin(phase*5)))
+    if index in (0, 5):
+        draw.ellipse((x-11, face_y+78, x+11, face_y+78+mouth_open*2), fill=(112, 48, 55), outline=outline, width=3)
+    else:
+        draw.arc((x-14, face_y+72, x+14, face_y+94), 5, 175, fill=(112, 48, 55), width=4)
+    draw.ellipse((x-37, face_y+67, x-25, face_y+73), fill=(231, 139, 127))
+    draw.ellipse((x+25, face_y+67, x+37, face_y+73), fill=(231, 139, 127))
+
     # Brief action accents make important beats read clearly even on a phone screen.
     if index in (0, 3, 5) and action_pulse > 0.82:
         draw.arc((x-78, head_y-84, x+78, head_y+72), 205, 330, fill=(255, 219, 132), width=4)
@@ -270,11 +322,32 @@ def create_voice_gemini(text: str, destination: Path) -> None:
         try:
             with urllib.request.urlopen(request, timeout=240) as response:
                 result = json.loads(response.read().decode("utf-8"))
-            encoded = (result.get("output_audio") or {}).get("data")
+            # Gemini Interactions API returns generated audio inside
+            # steps[].content[].data (not output_audio.data).
+            encoded = None
+            for step in result.get("steps", []):
+                for item in step.get("content", []):
+                    if item.get("type") == "audio" and item.get("data"):
+                        encoded = item["data"]
+                        break
+                    if item.get("data") and item.get("mime_type", "").startswith("audio/"):
+                        encoded = item["data"]
+                        break
+                if encoded:
+                    break
+            # Be tolerant of response variants that omit the content type.
+            if not encoded:
+                for step in result.get("steps", []):
+                    for item in step.get("content", []):
+                        if item.get("data"):
+                            encoded = item["data"]
+                            break
+                    if encoded:
+                        break
             if not encoded:
                 raise RuntimeError(
-                    "Gemini TTS response did not contain output_audio.data: "
-                    + json.dumps(result, ensure_ascii=False)[:1000]
+                    "Gemini TTS completed but no audio data was found in steps[].content[].data: "
+                    + json.dumps(result, ensure_ascii=False)[:1200]
                 )
             import base64
             audio_bytes = base64.b64decode(encoded, validate=True)
