@@ -663,7 +663,7 @@ def main():
     TITLE, LINES = generate_story()
     # One Gemini TTS call for the complete six-scene narration. Paragraph breaks
     # encourage a natural pause between scenes while keeping the daily request count low.
-    narration_text = "\\n\\n".join(LINES)
+    narration_text = "\n\n".join(LINES)
     audio = OUT / "narration.wav"
     create_voice(narration_text, audio)
     total_duration = probe_duration(audio)
