@@ -1,0 +1,74 @@
+name: Publish Existing Malayalam Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_run_id:
+        description: "Successful video-generation run ID"
+        required: true
+        default: "43256850512"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-existing.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-existing-malayalam-video
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      VIDEO_ARTIFACT_DIR: video-artifact
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Verify Buffer API key
+        shell: bash
+        run: |
+          if [ -z "${BUFFER_API_KEY}" ]; then
+            echo "::error::BUFFER_API_KEY is missing from repository secrets."
+            exit 1
+          fi
+      - name: Download previously generated video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-short-video
+          path: video-artifact
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.inputs.video_run_id || '43256850512' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate artifact and preserve publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIDEO="$(find video-artifact -type f -name '*.mp4' -print -quit)"
+          STORY="$(find video-artifact -type f -name 'story.json' -print -quit)"
+          if [ -z "$VIDEO" ] || [ -z "$STORY" ]; then
+            echo "::error::The selected artifact must contain an MP4 and story.json."
+            exit 1
+          fi
+          cp src/publish_buffer.py "$RUNNER_TEMP/publish_buffer.py"
+          mkdir -p "$RUNNER_TEMP/buffer-media"
+          cp "$VIDEO" "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
+      - name: Publish video to public media branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --orphan buffer-media
+          git rm -rf . >/dev/null 2>&1 || true
+          cp "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4" ./daily_malayalam_stickman.mp4
+          git add daily_malayalam_stickman.mp4
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Publish existing daily Malayalam video"
+          git push origin HEAD:buffer-media --force
+      - name: Publish immediately through Buffer
+        env:
+          BUFFER_VIDEO_URL: https://raw.githubusercontent.com/${{ github.repository }}/buffer-media/daily_malayalam_stickman.mp4
+        run: python "$RUNNER_TEMP/publish_buffer.py"
