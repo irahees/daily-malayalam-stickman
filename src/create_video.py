@@ -5,6 +5,9 @@ import math
 import os
 import shutil
 import subprocess
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
