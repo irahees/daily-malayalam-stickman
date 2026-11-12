@@ -6,7 +6,7 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[1] / "output"
 
-# Offline Malayalam scripts: no Gemini/OpenAI text-generation API is used.
+# Offline Malayalam scripts; no text-generation API is used.
 STORIES = [
     {
         "topic": "ഒരു ദിവസം കേരളത്തിലെ എല്ലാ കടകളും അടച്ചാൽ?",
