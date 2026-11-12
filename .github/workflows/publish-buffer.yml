@@ -1,0 +1,82 @@
+name: Publish Malayalam Short to Instagram + YouTube via Buffer
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful video-generation run ID (default: latest confirmed video)"
+        required: true
+        type: string
+        default: "43255563877"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: buffer-publish-${{ inputs.source_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      VIDEO_ARTIFACT_DIR: ./video-artifact
+
+    steps:
+      - name: Checkout publishing script
+        uses: actions/checkout@v4
+
+      - name: Verify Buffer API key
+        shell: bash
+        run: |
+          if [ -z "${BUFFER_API_KEY}" ]; then
+            echo "::error::BUFFER_API_KEY is missing from repository Actions secrets."
+            exit 1
+          fi
+
+      - name: Download the selected video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-short-video
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: ./video-artifact
+
+      - name: Prepare public video release asset
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          VIDEO="$(find ./video-artifact -type f -name '*.mp4' -print -quit)"
+          if [ -z "$VIDEO" ]; then
+            echo "::error::No MP4 found in the selected artifact."
+            exit 1
+          fi
+          cp "$VIDEO" release-assets/daily_malayalam_stickman.mp4
+          if ! find ./video-artifact -type f -name 'story.json' -print -quit | grep -q .; then
+            echo "::error::story.json missing from the selected artifact."
+            exit 1
+          fi
+          echo "tag=buffer-publish-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Host video at a public HTTPS URL
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Malayalam Short ${{ inputs.source_run_id }}
+          body: "Public media asset used by Buffer for the requested Instagram Reel and YouTube Short."
+          files: release-assets/daily_malayalam_stickman.mp4
+          fail_on_unmatched_files: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish immediately through Buffer
+        env:
+          BUFFER_VIDEO_URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.tag }}/daily_malayalam_stickman.mp4
+        run: python src/publish_buffer.py
