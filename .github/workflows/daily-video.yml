@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 45
     env:
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ELEVENLABS_TTS_MODEL: eleven_v3
       PYTHONUNBUFFERED: "1"
 
@@ -50,7 +49,7 @@ jobs:
       - name: Validate ElevenLabs secrets
         shell: bash
         run: |
-          for key in ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID; do
+          for key in ELEVENLABS_API_KEY; do
             if [ -z "${!key}" ]; then
               echo "::error::$key is missing from GitHub Actions repository secrets."
               exit 1
