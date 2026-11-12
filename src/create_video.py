@@ -229,92 +229,83 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     FRAMES.mkdir(parents=True, exist_ok=True)
     sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
 
-def resolve_free_default_voice(api_key: str) -> tuple[str, str]:
-    """Select an account-provided default voice, never a community library voice."""
-    request = urllib.request.Request(
-        "https://api.elevenlabs.io/v2/voices?voice_type=default&page_size=100",
-        headers={"xi-api-key": api_key, "Accept": "application/json"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"ElevenLabs default-voice lookup HTTP {error.code}: {details[:700]}") from error
-
-    voices = [v for v in payload.get("voices", []) if v.get("voice_id")]
-    if not voices:
-        raise RuntimeError("ElevenLabs returned no default voices for this account.")
-
-    # Prefer a voice explicitly marked as free, then a male narration voice.
-    free_voices = [v for v in voices if "free" in (v.get("available_for_tiers") or [])]
-    candidates = free_voices or voices
-    male = [v for v in candidates if str((v.get("labels") or {}).get("gender", "")).lower() == "male"]
-    selected = (male or candidates)[0]
-    voice_id = str(selected["voice_id"])
-    voice_name = str(selected.get("name") or "ElevenLabs default voice")
-    print(f"Selected account default voice: {voice_name} ({voice_id})")
-    return voice_id, voice_name
-
-
-def create_voice_elevenlabs(text: str, destination: Path) -> None:
-    """Generate Malayalam narration using an account-provided default ElevenLabs voice."""
-    api_key = os.getenv("ELEVENLABS_API_KEY")
+def create_voice_gemini(text: str, destination: Path) -> None:
+    """Generate Malayalam narration as WAV using Gemini 3.8 Flash TTS."""
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("ELEVENLABS_API_KEY is missing from GitHub Actions repository secrets.")
+        raise RuntimeError("GEMINI_API_KEY is missing from GitHub Actions repository secrets.")
 
-    voice_id, voice_name = resolve_free_default_voice(api_key)
-    model = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_v3")
-    payload = {"text": text, "model_id": model, "language_code": "ml"}
+    model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
+    # Charon is an informative narration voice. Malayalam is detected from the
+    # transcript; the style request asks for clear, natural Kerala Malayalam.
+    payload = {
+        "model": model,
+        "input": [{
+            "type": "user_input",
+            "content": [{
+                "type": "text",
+                "text": text,
+                "annotations": [{
+                    "type": "speech_metadata",
+                    "style": "Speak clearly and naturally in Malayalam with a warm, engaging Kerala Malayalam narration style. Use a confident, conversational explainer delivery at a moderate pace. Pronounce every Malayalam word accurately. Do not translate, paraphrase, or add any words."
+                }]
+            }]
+        }],
+        "response_format": {"type": "audio"},
+        "generation_config": {"speech_config": [{"voice": "Charon"}]}
+    }
     request = urllib.request.Request(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
-            "xi-api-key": api_key,
-            "Accept": "audio/mpeg"
+            "x-goog-api-key": api_key,
+            "Accept": "application/json"
         },
         method="POST"
     )
+
+    audio_bytes = None
     for attempt in range(4):
         try:
             with urllib.request.urlopen(request, timeout=240) as response:
-                audio_bytes = response.read()
+                result = json.loads(response.read().decode("utf-8"))
+            encoded = (result.get("output_audio") or {}).get("data")
+            if not encoded:
+                raise RuntimeError(
+                    "Gemini TTS response did not contain output_audio.data: "
+                    + json.dumps(result, ensure_ascii=False)[:1000]
+                )
+            import base64
+            audio_bytes = base64.b64decode(encoded, validate=True)
             break
         except urllib.error.HTTPError as error:
             details = error.read().decode("utf-8", errors="replace")
             if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
-                raise RuntimeError(f"ElevenLabs TTS HTTP {error.code}: {details[:1000]}") from error
+                raise RuntimeError(f"Gemini TTS HTTP {error.code}: {details[:1200]}") from error
             delay = min(60, 2 ** (attempt + 1))
-            print(f"ElevenLabs temporarily returned HTTP {error.code}; retrying in {delay}s.")
+            print(f"Gemini TTS temporarily returned HTTP {error.code}; retrying in {delay}s.")
             time.sleep(delay)
         except (urllib.error.URLError, TimeoutError) as error:
             if attempt == 3:
-                raise RuntimeError(f"ElevenLabs connection failed: {error}") from error
+                raise RuntimeError(f"Gemini TTS connection failed: {error}") from error
             delay = min(30, 2 ** (attempt + 1))
-            print(f"ElevenLabs connection issue; retrying in {delay}s.")
+            print(f"Gemini TTS connection issue; retrying in {delay}s.")
             time.sleep(delay)
 
-    if len(audio_bytes) < 1024:
-        raise RuntimeError("ElevenLabs returned an empty or invalid audio response.")
-    mp3_path = destination.with_suffix(".elevenlabs.mp3")
-    mp3_path.write_bytes(audio_bytes)
-    try:
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(mp3_path), "-acodec", "pcm_s16le", "-ar", "44100", str(destination)],
-            check=True, capture_output=True, text=True
-        )
-    finally:
-        mp3_path.unlink(missing_ok=True)
+    if not audio_bytes or len(audio_bytes) < 1024:
+        raise RuntimeError("Gemini TTS returned an empty or invalid WAV response.")
+    destination.write_bytes(audio_bytes)
     if not destination.exists() or destination.stat().st_size < 1024:
-        raise RuntimeError("ElevenLabs audio could not be converted to WAV.")
-    print(f"ElevenLabs audio saved. Model={model}, voice={voice_name}, bytes={destination.stat().st_size}")
+        raise RuntimeError("Gemini TTS WAV file could not be saved.")
+    if audio_bytes[:4] != b"RIFF" or audio_bytes[8:12] != b"WAVE":
+        raise RuntimeError("Gemini TTS response was not a valid WAV file (RIFF/WAVE header missing).")
+    print(f"Gemini TTS audio saved. Model={model}, voice=Charon, bytes={destination.stat().st_size}")
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """ElevenLabs is the sole voice-generation provider."""
-    create_voice_elevenlabs(text, destination)
+    """Gemini TTS is the sole voice-generation provider."""
+    create_voice_gemini(text, destination)
 
 def probe_duration(audio: Path) -> float:
     result = subprocess.run(

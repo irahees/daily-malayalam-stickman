@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_TTS_MODEL: eleven_v3
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       PYTHONUNBUFFERED: "1"
 
     steps:
@@ -46,10 +46,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Validate ElevenLabs secrets
+      - name: Validate Gemini TTS secret
         shell: bash
         run: |
-          for key in ELEVENLABS_API_KEY; do
+          for key in GEMINI_API_KEY; do
             if [ -z "${!key}" ]; then
               echo "::error::$key is missing from GitHub Actions repository secrets."
               exit 1
@@ -59,7 +59,7 @@ jobs:
       - name: Select offline Malayalam script
         run: python src/create_brief.py
 
-      - name: Generate Malayalam narration and MP4 with ElevenLabs
+      - name: Generate Malayalam narration and MP4 with Gemini TTS
         run: python src/create_video.py
 
       - name: Verify output video
