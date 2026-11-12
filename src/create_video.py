@@ -268,18 +268,81 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
         return labels[index]
 
     if shop:
-        labels=["LOCAL SHOP","GOODS","DELIVERY","CUSTOMERS","DAILY NEEDS","TAKEAWAY"]
+        # Six distinct story beats for a shop/supply-chain story. Keep the same
+        # simple outlined 2D-cartoon language as the existing renderer.
+        labels=["CLOSED STREET SHOP","DAILY ESSENTIALS","WAREHOUSE","DELIVERY TRUCK","SUPPLY CHAIN","AT HOME"]
         draw.rectangle((0,0,720,1280), fill=(244,216,173))
         draw.rectangle((0,900,720,1280), fill=(142,94,58))
-        draw.rectangle((55,250,665,880), fill=(222,183,133), outline=ink, width=7)
-        draw.rectangle((55,250,665,360), fill=(180,48,38))
-        draw.text((180,280), "LOCAL SHOP", font=get_font(38,True), fill=(255,239,196))
-        for row in range(2):
-            y=500+row*145
-            draw.rectangle((100,y,620,y+12), fill=(95,62,42))
-            for col in range(5):
-                xx=130+col*95
-                draw.rounded_rectangle((xx,y-75,xx+55,y), radius=8, fill=[(226,102,63),(87,160,99),(234,186,72)][col%3], outline=ink, width=3)
+        if index == 0:
+            # Kerala street with a closed rolling shutter and signboard.
+            draw.rectangle((0,610,720,930), fill=(178,197,183))
+            draw.rectangle((65,280,655,840), fill=(236,205,157), outline=ink, width=8)
+            draw.rectangle((65,280,655,390), fill=(180,48,38), outline=ink, width=5)
+            draw.text((205,310), "LOCAL SHOP", font=get_font(38,True), fill=(255,239,196))
+            draw.rectangle((125,420,595,790), fill=(132,139,145), outline=ink, width=7)
+            for yy in range(455,780,38):
+                draw.line((140,yy,580,yy), fill=(75,83,91), width=5)
+            draw.rounded_rectangle((260,800,460,850), radius=12, fill=(86,55,39), outline=ink, width=5)
+        elif index == 1:
+            # Grocery interior: shelves and essential goods.
+            draw.rectangle((45,230,675,890), fill=(250,235,205), outline=ink, width=7)
+            for yy in (430,635,825):
+                draw.rectangle((85,yy,635,yy+16), fill=(105,65,42), outline=ink, width=3)
+            goods=[(226,102,63),(87,160,99),(234,186,72),(105,151,190)]
+            for row,yy in enumerate((340,545,735)):
+                for col in range(6):
+                    xx=112+col*84
+                    draw.rounded_rectangle((xx,yy,xx+54,yy+82), radius=9, fill=goods[(row+col)%4], outline=ink, width=4)
+            draw.ellipse((475,260,575,360), fill=(255,242,205), outline=ink, width=4)
+            draw.text((490,286), "MILK", font=get_font(20,True), fill=(60,70,75))
+        elif index == 2:
+            # Warehouse racks and stacked cartons.
+            draw.rectangle((40,250,680,890), fill=(207,221,224), outline=ink, width=7)
+            draw.rectangle((65,300,655,350), fill=(83,100,111))
+            for xx in (100,320,540):
+                draw.rectangle((xx,360,xx+18,860), fill=(77,83,88))
+            for row,yy in enumerate((390,600,790)):
+                for col in range(3):
+                    xx=125+col*165
+                    draw.rectangle((xx,yy,xx+125,yy+115), fill=[(207,151,91),(184,119,75),(222,178,112)][(row+col)%3], outline=ink, width=5)
+                    draw.line((xx+62,yy,xx+62,yy+115), fill=(119,78,48), width=3)
+        elif index == 3:
+            # Delivery truck on a road.
+            draw.rectangle((0,700,720,930), fill=(89,105,100))
+            draw.line((0,815,720,815), fill=(245,222,151), width=8)
+            draw.rounded_rectangle((90,490,475,760), radius=28, fill=(74,145,176), outline=ink, width=8)
+            draw.rectangle((475,565,615,760), fill=(220,91,66), outline=ink, width=8)
+            draw.polygon([(500,585),(575,585),(600,650),(500,650)], fill=(184,224,233), outline=ink)
+            for cx in (205,525):
+                draw.ellipse((cx-52,720,cx+52,824), fill=(38,43,48), outline=ink, width=5)
+                draw.ellipse((cx-23,749,cx+23,795), fill=(220,220,210), outline=ink, width=4)
+            draw.text((170,575), "DELIVERY", font=get_font(30,True), fill=(255,255,255))
+        elif index == 4:
+            # Connected supply chain: warehouse, vehicle and storefront.
+            draw.rectangle((55,340,250,660), fill=(215,178,127), outline=ink, width=6)
+            draw.polygon([(35,355),(150,260),(270,355)], fill=(153,83,57), outline=ink)
+            for xx in (90,155):
+                draw.rectangle((xx,435,xx+48,510), fill=(191,133,82), outline=ink, width=3)
+            draw.rounded_rectangle((300,445,435,560), radius=18, fill=(72,139,169), outline=ink, width=6)
+            draw.ellipse((320,535,365,580), fill=(45,48,52), outline=ink, width=4)
+            draw.ellipse((405,535,450,580), fill=(45,48,52), outline=ink, width=4)
+            draw.rectangle((500,360,665,665), fill=(235,205,157), outline=ink, width=6)
+            draw.rectangle((500,360,665,425), fill=(180,48,38))
+            draw.text((515,378), "SHOP", font=get_font(25,True), fill=(255,239,196))
+            draw.line((260,495,300,495), fill=(58,119,89), width=9)
+            draw.polygon([(292,480),(312,495),(292,510)], fill=(58,119,89))
+            draw.line((450,495,500,495), fill=(58,119,89), width=9)
+            draw.polygon([(492,480),(512,495),(492,510)], fill=(58,119,89))
+        else:
+            # Home kitchen counter with everyday essentials.
+            draw.rectangle((55,260,665,900), fill=(255,241,211), outline=ink, width=7)
+            draw.rectangle((95,690,625,790), fill=(139,83,53), outline=ink, width=5)
+            draw.rectangle((135,510,230,680), fill=(238,230,205), outline=ink, width=4)
+            draw.text((145,565), "RICE", font=get_font(22,True), fill=(65,65,60))
+            draw.rounded_rectangle((285,545,380,680), radius=14, fill=(239,239,223), outline=ink, width=4)
+            draw.text((302,590), "MILK", font=get_font(22,True), fill=(65,65,60))
+            draw.ellipse((445,565,545,665), fill=(217,67,55), outline=ink, width=4)
+            draw.ellipse((535,580,610,655), fill=(88,155,82), outline=ink, width=4)
         return labels[index]
 
     # General scene-specific fallback: indoor room, street, classroom, or outdoor landscape.
@@ -605,6 +668,11 @@ def main():
         clip = OUT / f"narration_scene_{scene_index + 1:02d}.wav"
         create_voice(line, clip)
         scene_audio.append(clip)
+        # Stay below the account's observed 3-requests-per-minute free-tier limit.
+        # Space calls by 22 seconds so a six-scene short does not hit HTTP 429.
+        if scene_index < len(LINES) - 1:
+            print("Gemini TTS pacing: waiting 22 seconds before the next scene.")
+            time.sleep(22)
 
     concat_list = OUT / "audio_concat.txt"
     concat_list.write_text(
