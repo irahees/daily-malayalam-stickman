@@ -1,67 +1,126 @@
 from __future__ import annotations
 
 import json
-import os
-import time
-import urllib.error
-import urllib.request
+from datetime import date
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[1] / "output"
-MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
-PROMPT = """Act as the creative director for a Malayalam Shorts channel for Kerala viewers.
-Choose one original, compelling 45-60 second topic with a curiosity gap. Prefer surprising
-Kerala/India what-if scenarios, everyday economics, science/technology curiosities, or useful facts.
-Clearly label hypotheticals; never present them as real events. Do not invent current trends,
-statistics, dates, or factual claims. Return ONLY valid JSON with exactly three non-empty string
-fields: topic, angle, hook. Write all three in natural Malayalam. The hook must work in the
-first 1.2 seconds. No markdown."""
+
+# Offline Malayalam scripts: no Gemini/OpenAI text-generation API is used.
+STORIES = [
+    {
+        "topic": "ഒരു ദിവസം കേരളത്തിലെ എല്ലാ കടകളും അടച്ചാൽ?",
+        "angle": "ദൈനംദിന ജീവിതത്തിൽ കടകളുടെയും വിതരണ ശൃംഖലയുടെയും പങ്ക് കാണിക്കുന്ന സങ്കൽപ്പകഥ",
+        "hook": "നാളെ കേരളത്തിലെ എല്ലാ കടകളും ഒരുദിവസം അടച്ചാൽ എന്താകും?",
+        "title": "കേരളത്തിലെ കടകൾ അടച്ചാൽ?",
+        "scenes": [
+            "നാളെ കേരളത്തിലെ എല്ലാ കടകളും ഒരുദിവസം അടച്ചെന്ന് ഒന്ന് ചിന്തിച്ചുനോക്കൂ!",
+            "ആദ്യം ബുദ്ധിമുട്ടുക ഭക്ഷണം, മരുന്ന്, പാൽ പോലുള്ള ദിവസേന വേണ്ട സാധനങ്ങൾ വാങ്ങുന്നവരാണ്.",
+            "കടകൾക്ക് സാധനങ്ങൾ എത്തിക്കുന്നത് ഗോഡൗണുകളും വാഹനങ്ങളും വിതരണക്കാരുമാണ്.",
+            "ഒരു കണ്ണി മുടങ്ങിയാൽ അടുത്ത കണ്ണിയിലേക്കും അതിന്റെ ആഘാതം എത്താം.",
+            "അതുകൊണ്ടാണ് കട തുറന്നിരിക്കുന്നതിനു പിന്നിൽ ഒരുപാട് ആളുകളുടെ അധ്വാനം ഉള്ളത്.",
+            "നിങ്ങൾക്ക് ഏറ്റവും ആദ്യം ഏത് സാധനമാണ് മിസ് ചെയ്യുക?"
+        ]
+    },
+    {
+        "topic": "ഒരു രൂപ നാണയം ഇല്ലാതായാൽ എന്ത് സംഭവിക്കും?",
+        "angle": "ചെറിയ പണത്തിന്റെ പ്രായോഗിക പങ്ക് വിശദീകരിക്കുന്ന സങ്കൽപ്പ സാഹചര്യം",
+        "hook": "നാളെ മുതൽ ഒരു രൂപ നാണയം ഇല്ലാതായാൽ?",
+        "title": "ഒരു രൂപ ഇല്ലാതായാൽ?",
+        "scenes": [
+            "നാളെ മുതൽ ഒരു രൂപ നാണയം ഉപയോഗിക്കാനില്ലെന്ന് കരുതൂ. എന്ത് മാറും?",
+            "ചെറിയ വിലയുള്ള സാധനങ്ങളുടെ കൃത്യമായ ബാക്കി നൽകുന്നത് ബുദ്ധിമുട്ടാകാം.",
+            "കടകൾക്ക് വിലയും ബില്ലും പണമടയ്ക്കുന്ന രീതിയും ക്രമീകരിക്കേണ്ടിവരും.",
+            "ഡിജിറ്റൽ പേയ്മെന്റിൽ ഒരു രൂപയുടെ കൃത്യമായ തുക നൽകാൻ സാധിക്കും.",
+            "പക്ഷേ എല്ലാവർക്കും ഒരേ രീതിയിൽ പണമടയ്ക്കാൻ സൗകര്യമുണ്ടാകണമെന്നില്ല.",
+            "നിങ്ങൾ കൂടുതലായി ഉപയോഗിക്കുന്നത് പണമാണോ ഡിജിറ്റൽ പേയ്മെന്റാണോ?"
+        ]
+    },
+    {
+        "topic": "മൊബൈൽ ഇന്റർനെറ്റ് ഒരു ദിവസം നിലച്ചാൽ?",
+        "angle": "ഇന്റർനെറ്റിനെ ആശ്രയിക്കുന്ന ദൈനംദിന സേവനങ്ങൾ കാണിക്കുന്ന സങ്കൽപ്പകഥ",
+        "hook": "ഒരു ദിവസം മൊബൈൽ ഇന്റർനെറ്റ് മുഴുവൻ നിലച്ചാൽ?",
+        "title": "ഇന്റർനെറ്റ് ഇല്ലാത്ത ഒരു ദിവസം",
+        "scenes": [
+            "ഒരു ദിവസം മുഴുവൻ മൊബൈൽ ഇന്റർനെറ്റ് ഇല്ലെന്ന് ഒന്ന് ചിന്തിച്ചുനോക്കൂ!",
+            "മെസേജുകളും വീഡിയോകളും സോഷ്യൽ മീഡിയയും പെട്ടെന്ന് ലഭിക്കാതാകും.",
+            "ഓൺലൈൻ പേയ്മെന്റിനെയും മാപ്പിനെയും ആശ്രയിക്കുന്നവർക്ക് ബുദ്ധിമുട്ടുണ്ടാകാം.",
+            "പക്ഷേ ഫോൺ വിളിയും SMS-ഉം പോലുള്ള സേവനങ്ങൾ ലഭ്യമാകാം; അത് നെറ്റ്വർക്കിനെ ആശ്രയിക്കും.",
+            "അടിയന്തര കാര്യങ്ങൾക്ക് ഓഫ്‌ലൈൻ വിവരങ്ങളും പ്രധാന നമ്പറുകളും സൂക്ഷിക്കുന്നത് നല്ല ശീലമാണ്.",
+            "നിങ്ങൾക്ക് ഇന്റർനെറ്റ് ഇല്ലാതെ ഒരു ദിവസം കഴിയുമോ?"
+        ]
+    },
+    {
+        "topic": "ഒരു മഴത്തുള്ളി മണ്ണിലേക്ക് വീണാൽ എന്ത് സംഭവിക്കുന്നു?",
+        "angle": "മഴവെള്ളം മണ്ണിലേക്കും ഭൂഗർഭജലത്തിലേക്കും പോകുന്ന യാത്ര",
+        "hook": "ഒരു മഴത്തുള്ളിയുടെ യാത്ര നിങ്ങൾക്കറിയാമോ?",
+        "title": "ഒരു മഴത്തുള്ളിയുടെ യാത്ര",
+        "scenes": [
+            "ആകാശത്തുനിന്ന് വീഴുന്ന ഒരു മഴത്തുള്ളി എവിടേക്കാണ് പോകുന്നത്?",
+            "ചില വെള്ളം ഇലകളിലും മേൽക്കൂരകളിലും തട്ടി ഒഴുകിപ്പോകും.",
+            "ചിലത് മണ്ണിലേക്ക് ഇറങ്ങി മണ്ണിലെ ചെറിയ ഇടങ്ങൾ നിറയ്ക്കും.",
+            "മണ്ണിന്റെ സ്വഭാവം അനുസരിച്ച് വെള്ളം താഴേക്ക് ചെന്ന് ഭൂഗർഭജലത്തിന്റെ ഭാഗമാകാം.",
+            "മറ്റുചില വെള്ളം തോടുകളിലൂടെയും പുഴകളിലൂടെയും കടലിലെത്തും.",
+            "അതുകൊണ്ടാണ് മഴവെള്ളം പാഴാക്കാതെ സംരക്ഷിക്കണമെന്ന് പറയുന്നത്."
+        ]
+    },
+    {
+        "topic": "ഫോൺ ബാറ്ററി 100 ശതമാനത്തിൽ നിന്ന് പെട്ടെന്ന് കുറയുന്നത് എന്തുകൊണ്ട്?",
+        "angle": "ബാറ്ററി ഉപയോഗത്തെ സ്വാധീനിക്കുന്ന സ്ക്രീൻ, ആപ്പുകൾ, സിഗ്നൽ എന്നിവ",
+        "hook": "ഫോൺ 100% ചാർജ് ചെയ്തിട്ടും പെട്ടെന്ന് കുറയുന്നത് എന്തുകൊണ്ട്?",
+        "title": "ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?",
+        "scenes": [
+            "ഫോൺ 100 ശതമാനം ചാർജ് ചെയ്തു. കുറച്ച് കഴിഞ്ഞപ്പോൾ തന്നെ കുറഞ്ഞോ?",
+            "സ്ക്രീൻ തെളിച്ചം കൂടുതലായാൽ ബാറ്ററി കൂടുതൽ ഉപയോഗിക്കാം.",
+            "വീഡിയോ, ഗെയിം, ലൊക്കേഷൻ തുടങ്ങിയവയും വൈദ്യുതി ഉപയോഗിക്കും.",
+            "സിഗ്നൽ കുറവുള്ള സ്ഥലത്ത് നെറ്റ്വർക്ക് കണ്ടെത്താൻ ഫോൺ കൂടുതൽ ശ്രമിക്കാം.",
+            "ഉപയോഗിക്കാത്ത ആപ്പുകൾ അടയ്ക്കുന്നതും തെളിച്ചം ക്രമീകരിക്കുന്നതും സഹായിക്കാം.",
+            "നിങ്ങളുടെ ഫോണിൽ ബാറ്ററി ഏറ്റവും കൂടുതൽ ഉപയോഗിക്കുന്നത് ഏത് ആപ്പാണ്?"
+        ]
+    },
+    {
+        "topic": "ഒരു ദിവസം പെട്രോൾ പമ്പുകൾ പ്രവർത്തിക്കാതിരുന്നാൽ?",
+        "angle": "ഗതാഗതത്തിനും വിതരണത്തിനും ഇന്ധനലഭ്യതയുടെ പ്രാധാന്യം",
+        "hook": "കേരളത്തിലെ പെട്രോൾ പമ്പുകൾ ഒരു ദിവസം അടച്ചാൽ എന്താകും?",
+        "title": "പെട്രോൾ പമ്പുകൾ അടച്ചാൽ?",
+        "scenes": [
+            "ഒരു ദിവസം എല്ലാ പെട്രോൾ പമ്പുകളും പ്രവർത്തിക്കാതിരുന്നെന്ന് കരുതൂ!",
+            "ഇന്ധനം ആവശ്യമുള്ള യാത്രകളും ചരക്കുവാഹനങ്ങളും വൈകാൻ സാധ്യതയുണ്ട്.",
+            "ഭക്ഷണവും മരുന്നും എത്തിക്കുന്ന വിതരണത്തെയും ഇത് ബാധിക്കാം.",
+            "എല്ലാ വാഹനങ്ങളും ഒരേ ഇന്ധനം ഉപയോഗിക്കുന്നില്ല; ചിലത് വൈദ്യുതിയിലാണ് ഓടുന്നത്.",
+            "അതിനാൽ ഒരു സേവനത്തെ ആശ്രയിക്കുന്നതിന്റെ പ്രാധാന്യം ഈ സാഹചര്യം ഓർമ്മിപ്പിക്കുന്നു.",
+            "നിങ്ങളുടെ ദിവസേനയുള്ള യാത്രയ്ക്ക് ഏത് ഗതാഗതമാണ് ആശ്രയം?"
+        ]
+    },
+    {
+        "topic": "കടലിലെ വെള്ളം കുടിക്കാൻ പറ്റാത്തത് എന്തുകൊണ്ട്?",
+        "angle": "ഉപ്പിന്റെ അളവും ശുദ്ധജലവും തമ്മിലുള്ള ലളിതമായ ശാസ്ത്ര വിശദീകരണം",
+        "hook": "ചുറ്റും വെള്ളമുണ്ടെങ്കിലും കടൽവെള്ളം കുടിക്കാൻ പറ്റാത്തത് എന്തുകൊണ്ട്?",
+        "title": "കടൽവെള്ളം കുടിക്കാമോ?",
+        "scenes": [
+            "കടലിൽ വെള്ളം നിറയെ. എന്നിട്ടും അത് നേരിട്ട് കുടിക്കാൻ പറ്റാത്തത് എന്തുകൊണ്ട്?",
+            "കടൽവെള്ളത്തിൽ ഉപ്പും മറ്റ് ലയിച്ച ധാതുക്കളും കൂടുതലാണ്.",
+            "അത് കുടിക്കുമ്പോൾ ശരീരത്തിന് അധിക ഉപ്പ് പുറത്താക്കാൻ കൂടുതൽ വെള്ളം ആവശ്യമായി വരും.",
+            "അതുകൊണ്ട് കടൽവെള്ളം നേരിട്ട് കുടിക്കുന്നത് ശരീരത്തിന് അപകടകരമാണ്.",
+            "ശുദ്ധജലം ലഭിക്കാൻ ഉപ്പ് നീക്കം ചെയ്യുന്ന ശുദ്ധീകരണ രീതികൾ ഉപയോഗിക്കാം.",
+            "കടൽവെള്ളം ശുദ്ധീകരിക്കുന്നതിനെക്കുറിച്ച് കൂടുതൽ അറിയണോ?"
+        ]
+    }
+]
 
 
 def main() -> None:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing from GitHub Actions secrets.")
-    payload = {
-        "contents": [{"parts": [{"text": PROMPT}]}],
-        "generationConfig": {
-            "temperature": 0.9,
-            "maxOutputTokens": 700,
-            "responseMimeType": "application/json"
-        }
-    }
-    request = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST",
+    OUT.mkdir(parents=True, exist_ok=True)
+    story = STORIES[date.today().toordinal() % len(STORIES)]
+    brief = {key: story[key] for key in ("topic", "angle", "hook")}
+    (OUT / "creative_brief.json").write_text(
+        json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(request, timeout=90) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            content = result["candidates"][0]["content"]["parts"][0]["text"]
-            brief = json.loads(content)
-            if not all(isinstance(brief.get(k), str) and brief[k].strip() for k in ("topic", "angle", "hook")):
-                raise ValueError("Brief must contain non-empty topic, angle, and hook.")
-            OUT.mkdir(parents=True, exist_ok=True)
-            path = OUT / "creative_brief.json"
-            path.write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"Creative brief generated with Gemini model {MODEL}: {brief['topic']}")
-            return
-        except urllib.error.HTTPError as error:
-            details = error.read().decode("utf-8", errors="replace")
-            if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
-                raise RuntimeError(f"Gemini brief API HTTP {error.code}: {details[:1000]}") from error
-            delay = min(30, 2 ** (attempt + 1))
-            print(f"Gemini brief request returned HTTP {error.code}; retrying in {delay}s.")
-            time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError) as error:
-            if attempt == 3:
-                raise RuntimeError(f"Gemini brief API connection failed: {error}") from error
-            delay = min(30, 2 ** (attempt + 1))
-            print(f"Gemini brief connection issue; retrying in {delay}s.")
-            time.sleep(delay)
+    (OUT / "story.json").write_text(
+        json.dumps({"title": story["title"], "scenes": story["scenes"]},
+                   ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Offline Malayalam script selected: {story['topic']}")
 
 
 if __name__ == "__main__":
