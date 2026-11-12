@@ -39,3 +39,15 @@ The workflow can be started manually from the Actions tab. A daily schedule will
 
 ## Secrets
 Do not add secrets until the relevant integration is implemented. Use GitHub repository Settings → Secrets and variables → Actions.
+
+
+## Publish through Buffer (manual)
+
+The `Publish Malayalam Short to Instagram + YouTube via Buffer` workflow is a separate, manual action. It does not run during normal daily video generation.
+
+1. Add the Buffer personal API key as the repository Actions secret `BUFFER_API_KEY` (never commit the key).
+2. Open the Actions tab and choose `Publish Malayalam Short to Instagram + YouTube via Buffer`.
+3. Choose the successful video-generation run ID (the current verified video is run `43255563877`) and run the workflow.
+4. The workflow downloads that run's artifact, hosts the MP4 as a public GitHub Release asset so Buffer can fetch it, then sends an immediate Reel and YouTube Short to the matching connected Buffer channels.
+
+The video file in the release is publicly accessible. The publishing script requires exactly one active Instagram channel and one active YouTube channel in the Buffer account; it stops rather than guessing if either is missing or duplicated. AI-generated-content disclosure is enabled in both channel metadata. Buffer must have permission to publish to both channels, and channel-specific publishing restrictions still apply.
