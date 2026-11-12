@@ -329,12 +329,21 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     # outlined clothes, hands and shoes. Subtle motion keeps the character alive.
     shadow_width = int(76 + 12 * action_pulse)
     draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1152), fill=(30, 42, 48))
-    skin = (224, 157, 112)
-    skin_light = (246, 190, 145)
+    # Six distinct character identities. Each scene keeps its own face, hair and outfit
+    # stable across every frame, while the acting/movement remains animated.
+    character_styles = [
+        {"skin": (224,157,112), "light": (246,190,145), "shirt": (37,116,146), "accent": (66,157,178), "pants": (43,51,70), "hair": (48,38,36), "hair_style": 0, "face": 0},
+        {"skin": (170,112,78), "light": (205,148,111), "shirt": (151,73,53), "accent": (218,132,91), "pants": (61,57,67), "hair": (31,27,26), "hair_style": 1, "face": 1},
+        {"skin": (239,190,145), "light": (255,215,178), "shirt": (74,111,74), "accent": (132,169,104), "pants": (65,75,94), "hair": (91,57,37), "hair_style": 2, "face": 2},
+        {"skin": (133,86,62), "light": (177,123,93), "shirt": (117,79,151), "accent": (174,135,206), "pants": (48,55,76), "hair": (27,24,25), "hair_style": 3, "face": 1},
+        {"skin": (205,151,111), "light": (239,190,148), "shirt": (191,139,45), "accent": (237,190,81), "pants": (74,63,53), "hair": (75,48,32), "hair_style": 4, "face": 0},
+        {"skin": (111,72,54), "light": (157,107,82), "shirt": (52,111,102), "accent": (93,165,147), "pants": (40,49,64), "hair": (24,23,26), "hair_style": 5, "face": 2},
+    ]
+    style = character_styles[index % len(character_styles)]
+    skin, skin_light = style["skin"], style["light"]
     outline = (38, 35, 43)
-    shirt = (37, 116, 146)
-    shirt_light = (66, 157, 178)
-    trousers = (43, 51, 70)
+    shirt, shirt_light, trousers = style["shirt"], style["accent"], style["pants"]
+    hair_colour = style["hair"]
 
     # Legs and rounded shoes.
     leg_swing = int(24 * math.sin(phase * 1.65))
@@ -379,17 +388,52 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
 
     # Ears, face and hair silhouette.
     face_y = 665 + bob
+    face_variant = style["face"]
+    face_left = x - (57 if face_variant == 1 else 53)
+    face_right = x + (57 if face_variant == 1 else 53)
     draw.ellipse((x-66, face_y-8, x-34, face_y+42), fill=outline)
     draw.ellipse((x+34, face_y-8, x+66, face_y+42), fill=outline)
-    draw.ellipse((x-60, face_y-12, x+60, face_y+112), fill=outline)
-    draw.ellipse((x-53, face_y-7, x+53, face_y+104), fill=skin_light)
-    # Hair cap with a softly jagged fringe.
-    draw.pieslice((x-60, face_y-36, x+60, face_y+70), 180, 360, fill=outline)
-    draw.polygon([
-        (x-57, face_y+7), (x-45, face_y-14), (x-29, face_y+2),
-        (x-11, face_y-17), (x+7, face_y+1), (x+27, face_y-13),
-        (x+47, face_y+8), (x+52, face_y+24), (x-53, face_y+24)
-    ], fill=(48, 38, 36))
+    if face_variant == 0:
+        draw.rounded_rectangle((face_left, face_y-12, face_right, face_y+105), radius=39, fill=outline)
+        draw.rounded_rectangle((face_left+7, face_y-6, face_right-7, face_y+98), radius=34, fill=skin_light)
+    elif face_variant == 1:
+        draw.ellipse((face_left, face_y-12, face_right, face_y+112), fill=outline)
+        draw.ellipse((face_left+7, face_y-6, face_right-7, face_y+105), fill=skin_light)
+    else:
+        draw.ellipse((face_left-3, face_y-12, face_right+3, face_y+108), fill=outline)
+        draw.ellipse((face_left+5, face_y-6, face_right-5, face_y+101), fill=skin_light)
+
+    # Scene-specific hairstyles: short fringe, curls, side-part, long hair, bun and afro.
+    hair_style = style["hair_style"]
+    if hair_style == 0:
+        draw.pieslice((x-60, face_y-42, x+60, face_y+70), 180, 360, fill=hair_colour)
+        draw.polygon([(x-57,face_y+8),(x-44,face_y-16),(x-28,face_y+3),(x-10,face_y-19),
+                      (x+8,face_y+1),(x+27,face_y-14),(x+48,face_y+8),(x+52,face_y+24),
+                      (x-53,face_y+24)], fill=hair_colour)
+    elif hair_style == 1:
+        for hx,hy,rad in ((-43,-10,24),(-18,-25,25),(12,-23,25),(39,-8,25),(-52,12,18),(51,12,18)):
+            draw.ellipse((x+hx-rad,face_y+hy-rad,x+hx+rad,face_y+hy+rad),fill=hair_colour)
+        draw.rectangle((x-52,face_y+2,x+52,face_y+24),fill=hair_colour)
+    elif hair_style == 2:
+        draw.pieslice((x-59,face_y-42,x+59,face_y+65),180,360,fill=hair_colour)
+        draw.polygon([(x-58,face_y+8),(x-38,face_y-22),(x-4,face_y-29),
+                      (x+34,face_y-16),(x+55,face_y+8),(x+48,face_y+23),(x-52,face_y+23)],fill=hair_colour)
+        draw.arc((x-8,face_y-42,x+58,face_y+25),190,300,fill=(125,83,53),width=5)
+    elif hair_style == 3:
+        draw.pieslice((x-63,face_y-45,x+63,face_y+72),180,360,fill=hair_colour)
+        draw.rounded_rectangle((x-62,face_y+4,x-38,face_y+125),radius=12,fill=hair_colour)
+        draw.rounded_rectangle((x+38,face_y+4,x+62,face_y+125),radius=12,fill=hair_colour)
+        draw.polygon([(x-60,face_y+10),(x-38,face_y-24),(x,face_y-34),(x+43,face_y-15),
+                      (x+60,face_y+15),(x+48,face_y+28),(x-52,face_y+28)],fill=hair_colour)
+    elif hair_style == 4:
+        draw.pieslice((x-58,face_y-39,x+58,face_y+68),180,360,fill=hair_colour)
+        draw.ellipse((x+22,face_y-52,x+68,face_y-6),fill=hair_colour)
+        draw.polygon([(x-56,face_y+12),(x-35,face_y-17),(x-10,face_y-23),
+                      (x+19,face_y-13),(x+50,face_y+11),(x+49,face_y+25),(x-52,face_y+25)],fill=hair_colour)
+    else:
+        for hx,hy,rad in ((-42,-14,25),(-20,-34,26),(8,-37,28),(36,-24,25),(52,-1,22),(-53,8,21)):
+            draw.ellipse((x+hx-rad,face_y+hy-rad,x+hx+rad,face_y+hy+rad),fill=hair_colour)
+        draw.rectangle((x-48,face_y-4,x+48,face_y+24),fill=hair_colour)
     # Large animated eyes and eyebrows.
     eye_y = face_y+40
     blink = 0.18 if (int(phase*3) % 19 == 0) else 1.0
