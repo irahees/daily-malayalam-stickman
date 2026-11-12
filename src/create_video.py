@@ -562,7 +562,7 @@ def create_voice_gemini(text: str, destination: Path) -> None:
                 "text": text,
                 "annotations": [{
                     "type": "speech_metadata",
-                    "style": "Speak clearly and naturally in Malayalam with a warm, engaging Kerala Malayalam narration style. Use a confident, conversational explainer delivery at a moderate pace. Pronounce every Malayalam word accurately. Do not translate, paraphrase, or add any words."
+                    "style": "Speak clearly and naturally in Malayalam with a warm, engaging Kerala Malayalam narration style. Use a confident, conversational explainer delivery at a moderate pace. Pronounce every Malayalam word accurately. Treat each paragraph as the next scene and make a short natural pause between paragraphs. Do not translate, paraphrase, or add any words."
                 }]
             }]
         }],
@@ -661,38 +661,26 @@ def main():
 
     global TITLE, LINES
     TITLE, LINES = generate_story()
-    # Generate each scene's Malayalam narration separately so visual cuts and subtitles
-    # follow the actual spoken duration instead of splitting one long recording evenly.
-    scene_audio = []
-    for scene_index, line in enumerate(LINES):
-        clip = OUT / f"narration_scene_{scene_index + 1:02d}.wav"
-        create_voice(line, clip)
-        scene_audio.append(clip)
-        # Stay below the account's observed 3-requests-per-minute free-tier limit.
-        # Space calls by 22 seconds so a six-scene short does not hit HTTP 429.
-        if scene_index < len(LINES) - 1:
-            print("Gemini TTS pacing: waiting 22 seconds before the next scene.")
-            time.sleep(22)
-
-    concat_list = OUT / "audio_concat.txt"
-    concat_list.write_text(
-        "".join(f"file '{clip.as_posix()}'\n" for clip in scene_audio),
-        encoding="utf-8"
-    )
+    # One Gemini TTS call for the complete six-scene narration. Paragraph breaks
+    # encourage a natural pause between scenes while keeping the daily request count low.
+    narration_text = "\\n\\n".join(LINES)
     audio = OUT / "narration.wav"
-    subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
-        "-c:a", "pcm_s16le", str(audio)
-    ], check=True)
+    create_voice(narration_text, audio)
+    total_duration = probe_duration(audio)
+
+    # Estimate each scene's visual duration from its spoken word count. The single
+    # narration track remains continuous; this avoids six separate TTS API requests.
+    scene_weights = [max(len(line.split()), 1) for line in LINES]
+    total_weight = sum(scene_weights)
+    scene_durations = [total_duration * weight / total_weight for weight in scene_weights]
 
     frame_number = 0
-    for scene_index, (line, clip) in enumerate(zip(LINES, scene_audio)):
-        scene_duration = probe_duration(clip)
+    for scene_index, (line, scene_duration) in enumerate(zip(LINES, scene_durations)):
         scene_frames = max(int(math.ceil(scene_duration * FPS)), FPS * 2)
         for local_frame in range(scene_frames):
             draw_scene_frame(scene_index, line, TITLE, local_frame, scene_frames, frame_number)
             frame_number += 1
-        print(f"Rendered scene {scene_index + 1}/{len(LINES)}: {scene_duration:.1f}s")
+        print(f"Rendered scene {scene_index + 1}/{len(LINES)}: estimated {scene_duration:.1f}s")
 
     final_video = OUT / "daily_malayalam_stickman.mp4"
     # Encode the image sequence with narration in one pass (avoid a second full video encode).
