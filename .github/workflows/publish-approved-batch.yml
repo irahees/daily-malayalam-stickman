@@ -1,0 +1,65 @@
+name: Publish approved Malayalam Reels batch
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "GitHub Actions run ID that created the batch artifact"
+        required: true
+        type: string
+      approved:
+        description: "Confirm that you watched and approved the generated videos for posting"
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    if: inputs.approved == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      VIDEO_ARTIFACT_DIR: video-artifact
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download approved batch artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-weekly-reels
+          path: video-artifact
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install FFmpeg
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg
+      - name: Convert all seven videos to 30 FPS
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/media"
+          for f in video-artifact/*.mp4; do
+            n="$(basename "$f")"
+            ffmpeg -y -i "$f" -map 0:v:0 -map '0:a?' -vf "fps=30,format=yuv420p" -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/media/$n"
+            cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
+            ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n"
+          done
+      - name: Host videos as public GitHub Release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="approved-reels-${GITHUB_RUN_ID}"
+          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels ${GITHUB_RUN_ID}" --notes "User-reviewed original Malayalam videos."
+          echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
+      - name: Queue four approved Reels in Buffer
+        run: python src/publish_batch_buffer.py
+  approval-required:
+    if: inputs.approved != true
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::Publishing stopped. Review the videos and rerun with approved=true."
+          exit 1
