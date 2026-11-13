@@ -9,7 +9,7 @@ from pathlib import Path
 
 API = "https://api.buffer.com"
 PAGE_SIZE = 100
-WEEKLY_POSTS = 4
+WEEKLY_POSTS = 7
 
 
 def graphql(key: str, query: str, variables: dict | None = None) -> dict:
@@ -178,7 +178,7 @@ def main() -> None:
 
     videos = sorted(folder.glob("*.mp4"))
     if len(videos) != 7:
-        raise RuntimeError(f"Expected 7 reviewed videos; found {len(videos)}.")
+        raise RuntimeError(f"Expected 7 approved videos; found {len(videos)}.")
 
     account = graphql(key, "query { account { organizations { id name } } }").get("account") or {}
     organizations = account.get("organizations") or []
@@ -216,8 +216,6 @@ def main() -> None:
             raise RuntimeError(f"Buffer {service} queue is paused.")
         selected[service] = matches[0]
 
-    # Fetch existing posts before creating anything. This makes a rerun idempotent
-    # for the same release-asset URL and prevents duplicate scheduled uploads.
     existing = {
         service: load_posts(key, organization["id"], channel["id"])
         for service, channel in selected.items()
@@ -235,7 +233,6 @@ def main() -> None:
 
     queued = []
     skipped = []
-    # Four posts per week; the remaining three approved videos stay as reserves.
     for video in videos[:WEEKLY_POSTS]:
         story_path = video.with_suffix(".json")
         if not story_path.is_file():
@@ -250,12 +247,8 @@ def main() -> None:
         tags = hashtags_for(story)
         video_url = f"{base}/{video.name}"
         verify_public_video_url(video_url)
-        instagram_caption = (
-            f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Reels"
-        )
-        youtube_description = (
-            f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Shorts"
-        )
+        instagram_caption = f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Reels"
+        youtube_description = f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Shorts"
 
         for service in ("instagram", "youtube"):
             if video_url in scheduled_urls[service]:
@@ -263,9 +256,7 @@ def main() -> None:
                 print(f"SKIP {service} {video.name}: existing Buffer post uses this exact video URL")
                 continue
             caption = instagram_caption if service == "instagram" else youtube_description
-            post = create_post(
-                key, selected[service], video_url, title, caption, service
-            )
+            post = create_post(key, selected[service], video_url, title, caption, service)
             queued.append({
                 "service": service,
                 "video": video.name,
@@ -283,7 +274,7 @@ def main() -> None:
         raise RuntimeError("No Buffer posts were created or skipped; inspect the batch input.")
     print(
         f"Buffer batch complete: {len(queued)} new posts queued across both channels; "
-        f"{len(skipped)} duplicates safely skipped. No YouTube Data API upload was used."
+        f"{len(skipped)} duplicates safely skipped."
     )
 
 
