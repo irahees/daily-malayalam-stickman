@@ -639,76 +639,68 @@ def create_voice_gemini(text: str, destination: Path) -> None:
     print(f"Gemini TTS audio saved. Model={model}, voice=Charon, bytes={destination.stat().st_size}")
 
 
-def create_voice_elevenlabs(text: str, destination: Path) -> None:
-    """Secondary Malayalam narration provider, used only if Gemini is unavailable."""
-    api_key = os.getenv("ELEVENLABS_API_KEY")
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID")
-    if not api_key or not voice_id:
-        raise RuntimeError(
-            "Gemini TTS failed and ElevenLabs fallback is not configured: "
-            "ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID repository secrets are required."
-        )
+def create_voice_sarvam(text: str, destination: Path) -> None:
+    """Generate Malayalam narration using Sarvam Bulbul v3."""
+    api_key = os.getenv("SARVAM_API_KEY")
+    if not api_key:
+        raise RuntimeError("SARVAM_API_KEY is missing from GitHub Actions repository secrets.")
+    if len(text) > 2500:
+        raise RuntimeError("Sarvam Bulbul v3 accepts at most 2500 characters per REST request.")
 
-    import urllib.parse
-    url = "https://api.elevenlabs.io/v1/text-to-speech/" + urllib.parse.quote(voice_id, safe="")
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
-        "voice_settings": {"stability": 0.55, "similarity_boost": 0.75}
+        "model": "bulbul:v3",
+        "language_code": "ml-IN",
+        "speaker": os.getenv("SARVAM_TTS_SPEAKER", "shubh"),
+        "output_audio_codec": "wav",
+        "speech_sample_rate": 24000,
+        "pace": 1.0,
+        "temperature": 0.6
     }
     request = urllib.request.Request(
-        url,
+        "https://api.sarvam.ai/text-to-speech",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
-            "Accept": "audio/mpeg",
-            "xi-api-key": api_key
+            "Accept": "application/json",
+            "api-subscription-key": api_key
         },
         method="POST"
     )
     try:
         with urllib.request.urlopen(request, timeout=240) as response:
-            audio_bytes = response.read()
+            result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        # Do not print response bodies; they may contain provider diagnostics.
-        raise RuntimeError(f"ElevenLabs fallback HTTP {error.code}.") from error
-    if not audio_bytes or len(audio_bytes) < 1024:
-        raise RuntimeError("ElevenLabs fallback returned empty or invalid audio.")
+        # Never log response bodies or credentials.
+        raise RuntimeError(f"Sarvam TTS HTTP {error.code}.") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise RuntimeError(f"Sarvam TTS connection failed: {error}") from error
 
-    mp3_path = destination.with_suffix(".elevenlabs.mp3")
+    audios = result.get("audios") or []
+    if not audios or not audios[0]:
+        raise RuntimeError("Sarvam TTS response did not contain audio.")
+    import base64
     try:
-        mp3_path.write_bytes(audio_bytes)
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(mp3_path), "-ac", "1", "-ar", "24000", str(destination)],
-            check=True, capture_output=True, text=True
-        )
-    finally:
-        if mp3_path.exists():
-            mp3_path.unlink()
-    if not destination.is_file() or destination.stat().st_size < 1024:
-        raise RuntimeError("ElevenLabs audio conversion did not produce a valid WAV file.")
-    with destination.open("rb") as audio_file:
-        header = audio_file.read(12)
-    if header[:4] != b"RIFF" or header[8:12] != b"WAVE":
-        raise RuntimeError("ElevenLabs fallback output is not a valid WAV file.")
-    print(f"ElevenLabs fallback audio saved. Model=eleven_multilingual_v2, bytes={destination.stat().st_size}")
+        audio_bytes = base64.b64decode(audios[0], validate=True)
+    except (ValueError, TypeError) as error:
+        raise RuntimeError("Sarvam TTS returned invalid base64 audio.") from error
+    if len(audio_bytes) < 1024 or audio_bytes[:4] != b"RIFF" or audio_bytes[8:12] != b"WAVE":
+        raise RuntimeError("Sarvam TTS did not return a valid WAV audio file.")
+    destination.write_bytes(audio_bytes)
+    print(f"Sarvam TTS audio saved. Model=bulbul:v3, language=ml-IN, bytes={destination.stat().st_size}")
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """Use Gemini first; use ElevenLabs only after a retryable Gemini failure."""
-    try:
-        create_voice_gemini(text, destination)
-    except RuntimeError as error:
-        message = str(error)
-        retryable = (
-            "Gemini TTS HTTP 429" in message
-            or any(f"Gemini TTS HTTP {status}" in message for status in (500, 502, 503, 504))
-            or "Gemini TTS connection failed" in message
-        )
-        if not retryable:
-            raise
-        print("Gemini TTS unavailable after retries; attempting configured ElevenLabs secondary provider.")
-        create_voice_elevenlabs(text, destination)
+    """Prefer Gemini when configured; fall back to Sarvam Bulbul v3."""
+    if os.getenv("GEMINI_API_KEY"):
+        try:
+            create_voice_gemini(text, destination)
+            return
+        except RuntimeError as error:
+            print(f"Gemini TTS failed ({error}); attempting Sarvam Bulbul v3 fallback.")
+    else:
+        print("GEMINI_API_KEY is not configured; using Sarvam Bulbul v3.")
+    create_voice_sarvam(text, destination)
 
 def probe_duration(audio: Path) -> float:
     result = subprocess.run(
