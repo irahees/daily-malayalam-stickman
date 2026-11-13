@@ -40,25 +40,48 @@ def generate_story() -> tuple[str, list[str]]:
     print(f"Loaded offline Malayalam story: {title}")
     return title, scenes
 
-def find_font(bold: bool = False) -> str | None:
+def find_font(bold: bool = False) -> str:
+    """Resolve a real Malayalam-capable font; never silently fall back to Pillow's bitmap font."""
     candidates = []
     if bold:
-        candidates += ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf"]
-    candidates += [
+        candidates.append("/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf")
+    candidates.extend([
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam[wght].ttf",
         "/usr/share/fonts/truetype/NotoSansMalayalam-Regular.ttf",
-    ]
+    ])
     for candidate in candidates:
-        if Path(candidate).exists():
+        if Path(candidate).is_file():
             return candidate
-    return None
+    # Fontconfig knows the installed font's actual filename on Ubuntu runners.
+    try:
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Noto Sans Malayalam:lang=ml"],
+            check=True, capture_output=True, text=True, timeout=10
+        )
+        candidate = result.stdout.strip()
+        if candidate and Path(candidate).is_file():
+            return candidate
+    except (OSError, subprocess.SubprocessError):
+        pass
+    raise RuntimeError(
+        "Malayalam font not found. Install fonts-noto-core/fonts-noto-extra; "
+        "refusing to render Malayalam as empty squares."
+    )
 
 
 @lru_cache(maxsize=32)
 def get_font(size: int, bold: bool = False):
     path = find_font(bold)
-    return ImageFont.truetype(path, size) if path else ImageFont.load_default()
+    if not getattr(ImageFont, "Layout", None) or not hasattr(ImageFont.Layout, "RAQM"):
+        raise RuntimeError(
+            "Pillow was built without RAQM shaping support; Malayalam conjuncts "
+            "would render incorrectly. Install libraqm support before rendering."
+        )
+    try:
+        return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.RAQM)
+    except Exception as error:
+        raise RuntimeError(f"Unable to shape Malayalam text with font {path}: {error}") from error
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
@@ -254,17 +277,56 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
         return labels[index]
 
     if fuel:
-        labels=["PETROL PUMP","FUEL DELIVERY","TRANSPORT","ELECTRIC VEHICLE","SUPPLY CHAIN","YOUR CHOICE"]
-        draw.rectangle((0,0,720,1280), fill=(202,218,221))
-        draw.rectangle((0,900,720,1280), fill=(87,100,88))
-        if index in (0,1,2,3,4):
-            draw.rectangle((65,300,655,850), fill=(235,230,208), outline=ink, width=7)
-            draw.rectangle((65,300,655,390), fill=(194,42,35))
-            draw.text((170,320), "FUEL STATION", font=get_font(38,True), fill=(255,238,190))
-            draw.rounded_rectangle((180,470,340,760), radius=20, fill=(52,62,70), outline=ink, width=6)
-            draw.rectangle((210,510,310,600), fill=(90,180,190))
-            draw.line((340,560,440,680), fill=ink, width=12)
-            draw.rounded_rectangle((430,650,485,820), radius=14, fill=(194,48,38), outline=ink, width=5)
+        labels = ["PETROL STATION", "FUEL TANKER", "ROAD TRAFFIC", "ELECTRIC VEHICLE", "FUEL SUPPLY", "YOUR CHOICE"]
+        # Keep the same location language across the sequence, with scene-specific foreground props.
+        draw.rectangle((0, 0, 720, 1280), fill=(143, 202, 232))
+        # Distant Kerala skyline, palms and roadside greenery.
+        draw.rectangle((0, 690, 720, 940), fill=(106, 153, 100))
+        for tx, ty in ((45, 470), (655, 455)):
+            draw.rectangle((tx-7, ty+85, tx+7, 760), fill=(105, 73, 48))
+            draw.ellipse((tx-68, ty-20, tx+4, ty+110), fill=(43, 119, 76))
+            draw.ellipse((tx-5, ty-50, tx+70, ty+95), fill=(48, 133, 80))
+        # Large branded canopy with visible roof depth and support columns.
+        draw.polygon([(55, 405), (610, 405), (675, 485), (5, 485)], fill=(224, 229, 225), outline=ink)
+        draw.polygon([(55, 405), (610, 405), (675, 485), (5, 485)], fill=(237, 239, 228), outline=ink)
+        draw.rectangle((28, 470, 692, 515), fill=(191, 43, 39), outline=ink, width=4)
+        for cx in (125, 355, 585):
+            draw.rectangle((cx-13, 485, cx+13, 850), fill=(231, 226, 207), outline=ink, width=4)
+        # Station shop and glass frontage.
+        draw.rectangle((75, 515, 645, 850), fill=(242, 233, 207), outline=ink, width=6)
+        draw.rectangle((95, 540, 625, 620), fill=(194, 43, 38), outline=ink, width=4)
+        draw.text((205, 555), "PETROL STATION", font=get_font(30, True), fill=(255, 245, 215))
+        draw.rectangle((110, 650, 610, 830), fill=(142, 192, 202), outline=ink, width=5)
+        for wx in (275, 440):
+            draw.line((wx, 650, wx, 830), fill=(245, 244, 224), width=7)
+        # Three clearly recognizable fuel dispensers in the foreground.
+        for px in (165, 360, 555):
+            draw.rounded_rectangle((px-48, 680, px+48, 865), radius=13, fill=(231, 235, 230), outline=ink, width=6)
+            draw.rounded_rectangle((px-31, 700, px+31, 750), radius=7, fill=(38, 54, 65), outline=ink, width=3)
+            draw.rectangle((px-20, 712, px+20, 738), fill=(119, 206, 174))
+            draw.rectangle((px-30, 770, px+30, 840), fill=(194, 43, 38), outline=ink, width=3)
+            draw.line((px+46, 720, px+65, 775, px+61, 830), fill=(37, 43, 49), width=7)
+            draw.line((px+61, 830, px+49, 842), fill=(37, 43, 49), width=8)
+        # Road apron, lane markings and a moving car/tanker depending on the beat.
+        draw.rectangle((0, 900, 720, 1280), fill=(63, 73, 77))
+        draw.line((0, 1060, 720, 1060), fill=(242, 219, 153), width=8)
+        for dash_x in (60, 210, 360, 510, 660):
+            draw.line((dash_x, 1135, dash_x+70, 1135), fill=(242, 242, 224), width=7)
+        if index == 1:
+            draw.rounded_rectangle((85, 895, 485, 1085), radius=30, fill=(231, 226, 205), outline=ink, width=7)
+            draw.rectangle((115, 925, 435, 1045), fill=(223, 231, 225), outline=ink, width=4)
+            draw.rectangle((435, 950, 565, 1085), fill=(190, 48, 39), outline=ink, width=6)
+            draw.ellipse((150, 1050, 230, 1130), fill=(35, 39, 43), outline=ink, width=5)
+            draw.ellipse((455, 1050, 535, 1130), fill=(35, 39, 43), outline=ink, width=5)
+        elif index in (2, 3, 4):
+            car_x = 90 + int((frame * 3) % 430)
+            draw.rounded_rectangle((car_x, 970, car_x+205, 1080), radius=28, fill=(53, 117, 165), outline=ink, width=6)
+            draw.polygon([(car_x+38, 970), (car_x+78, 920), (car_x+160, 920), (car_x+185, 970)], fill=(135, 192, 207), outline=ink)
+            for wheel_x in (car_x+45, car_x+160):
+                draw.ellipse((wheel_x-25, 1050, wheel_x+25, 1100), fill=(34, 38, 42), outline=ink, width=4)
+        if index == 5:
+            draw.rounded_rectangle((190, 910, 530, 1085), radius=24, fill=(250, 238, 204), outline=ink, width=6)
+            draw.text((245, 965), "FUEL OR EV?", font=get_font(30, True), fill=(47, 58, 62))
         return labels[index]
 
     if shop:
