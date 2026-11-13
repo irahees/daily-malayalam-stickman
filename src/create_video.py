@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
 FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
-FPS = 24
+FPS = 30
 
 TITLE = ""
 LINES: list[str] = []
@@ -392,21 +392,17 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     # outlined clothes, hands and shoes. Subtle motion keeps the character alive.
     shadow_width = int(76 + 12 * action_pulse)
     draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1152), fill=(30, 42, 48))
-    # Six distinct character identities. Each scene keeps its own face, hair and outfit
-    # stable across every frame, while the acting/movement remains animated.
-    # One fixed host identity across every scene: young Kerala man, curly black hair,
-    # medium-brown skin, rust-brown shirt and dark trousers.
-    character_style = {
-        "skin": (132, 83, 59),
-        "light": (177, 121, 91),
-        "shirt": (145, 68, 48),
-        "accent": (191, 111, 83),
-        "pants": (43, 48, 61),
-        "hair": (25, 22, 23),
-        "hair_style": 1,
-        "face": 1,
-    }
-    style = character_style
+    # Six distinct 2D character designs. Each scene has a stable identity,
+    # while the same character stays consistent across all frames in that scene.
+    character_styles = [
+        {"skin": (132, 83, 59), "light": (177, 121, 91), "shirt": (55, 119, 93), "accent": (105, 174, 139), "pants": (43, 48, 61), "hair": (25, 22, 23), "hair_style": 0, "face": 0},
+        {"skin": (176, 119, 85), "light": (211, 157, 119), "shirt": (53, 101, 155), "accent": (107, 155, 204), "pants": (55, 58, 73), "hair": (38, 29, 24), "hair_style": 2, "face": 1},
+        {"skin": (105, 66, 49), "light": (153, 103, 78), "shirt": (191, 133, 48), "accent": (230, 181, 83), "pants": (48, 55, 70), "hair": (28, 24, 22), "hair_style": 3, "face": 2},
+        {"skin": (151, 96, 69), "light": (190, 132, 99), "shirt": (111, 75, 145), "accent": (163, 123, 194), "pants": (46, 52, 65), "hair": (35, 27, 25), "hair_style": 4, "face": 0},
+        {"skin": (188, 137, 101), "light": (220, 169, 128), "shirt": (44, 128, 139), "accent": (94, 183, 185), "pants": (52, 58, 72), "hair": (43, 31, 26), "hair_style": 5, "face": 1},
+        {"skin": (132, 83, 59), "light": (177, 121, 91), "shirt": (145, 68, 48), "accent": (191, 111, 83), "pants": (43, 48, 61), "hair": (25, 22, 23), "hair_style": 1, "face": 1},
+    ]
+    style = character_styles[index % len(character_styles)]
     skin, skin_light = style["skin"], style["light"]
     outline = (38, 35, 43)
     shirt, shirt_light, trousers = style["shirt"], style["accent"], style["pants"]
@@ -546,102 +542,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
-
-def create_voice_gemini(text: str, destination: Path) -> None:
-    """Generate Malayalam narration as WAV using Gemini 3.8 Flash TTS."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing from GitHub Actions repository secrets.")
-
-    model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
-    # Charon is an informative narration voice. Malayalam is detected from the
-    # transcript; the style request asks for clear, natural Kerala Malayalam.
-    payload = {
-        "model": model,
-        "input": [{
-            "type": "user_input",
-            "content": [{
-                "type": "text",
-                "text": text,
-                "annotations": [{
-                    "type": "speech_metadata",
-                    "style": "Speak clearly and naturally in Malayalam with a warm, engaging Kerala Malayalam narration style. Use a confident, conversational explainer delivery at a moderate pace. Pronounce every Malayalam word accurately. Treat each paragraph as the next scene and make a short natural pause between paragraphs. Do not translate, paraphrase, or add any words."
-                }]
-            }]
-        }],
-        "response_format": {"type": "audio"},
-        "generation_config": {"speech_config": [{"voice": "Charon"}]}
-    }
-    request = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/interactions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-            "Accept": "application/json"
-        },
-        method="POST"
-    )
-
-    audio_bytes = None
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(request, timeout=240) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            # Gemini Interactions API returns generated audio inside
-            # steps[].content[].data (not output_audio.data).
-            encoded = None
-            for step in result.get("steps", []):
-                for item in step.get("content", []):
-                    if item.get("type") == "audio" and item.get("data"):
-                        encoded = item["data"]
-                        break
-                    if item.get("data") and item.get("mime_type", "").startswith("audio/"):
-                        encoded = item["data"]
-                        break
-                if encoded:
-                    break
-            # Be tolerant of response variants that omit the content type.
-            if not encoded:
-                for step in result.get("steps", []):
-                    for item in step.get("content", []):
-                        if item.get("data"):
-                            encoded = item["data"]
-                            break
-                    if encoded:
-                        break
-            if not encoded:
-                raise RuntimeError(
-                    "Gemini TTS completed but no audio data was found in steps[].content[].data: "
-                    + json.dumps(result, ensure_ascii=False)[:1200]
-                )
-            import base64
-            audio_bytes = base64.b64decode(encoded, validate=True)
-            break
-        except urllib.error.HTTPError as error:
-            details = error.read().decode("utf-8", errors="replace")
-            if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
-                raise RuntimeError(f"Gemini TTS HTTP {error.code}: {details[:1200]}") from error
-            delay = min(60, 2 ** (attempt + 1))
-            print(f"Gemini TTS temporarily returned HTTP {error.code}; retrying in {delay}s.")
-            time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError) as error:
-            if attempt == 3:
-                raise RuntimeError(f"Gemini TTS connection failed: {error}") from error
-            delay = min(30, 2 ** (attempt + 1))
-            print(f"Gemini TTS connection issue; retrying in {delay}s.")
-            time.sleep(delay)
-
-    if not audio_bytes or len(audio_bytes) < 1024:
-        raise RuntimeError("Gemini TTS returned an empty or invalid WAV response.")
-    destination.write_bytes(audio_bytes)
-    if not destination.exists() or destination.stat().st_size < 1024:
-        raise RuntimeError("Gemini TTS WAV file could not be saved.")
-    if audio_bytes[:4] != b"RIFF" or audio_bytes[8:12] != b"WAVE":
-        raise RuntimeError("Gemini TTS response was not a valid WAV file (RIFF/WAVE header missing).")
-    print(f"Gemini TTS audio saved. Model={model}, voice=Charon, bytes={destination.stat().st_size}")
-
+    sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=92, subsampling=0, optimize=True)
 
 def create_voice_sarvam(text: str, destination: Path) -> None:
     """Generate Malayalam narration using Sarvam Bulbul v3."""
@@ -743,8 +644,8 @@ def main():
         "ffmpeg", "-y", "-framerate", str(FPS), "-i",
         str(FRAMES / "frame_%06d.jpg"), "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", "scale=1080:1920:flags=bicubic,setsar=1",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-vf", "scale=1080:1920:flags=lanczos,setsar=1",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", "30", "-fps_mode", "cfr",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
         "-shortest", "-movflags", "+faststart", str(final_video)
     ], check=True)
