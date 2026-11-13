@@ -1,6 +1,9 @@
 name: Validate Malayalam video and Buffer pipeline
 
 on:
+  push:
+    branches:
+      - feature/two-way-platform-sync
   pull_request:
     paths:
       - "src/**"
