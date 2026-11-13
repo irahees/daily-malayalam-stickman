@@ -225,8 +225,9 @@ def main() -> None:
     # Compare all retained Buffer records, but only sent posts are treated as published sources.
     insta_sent = [p for p in insta_posts if str(p.get("status", "")).lower() == "sent"]
     youtube_sent = [p for p in youtube_posts if str(p.get("status", "")).lower() == "sent"]
-    insta_other = [p for p in insta_posts if str(p.get("status", "")).lower() != "sent"]
-    youtube_other = [p for p in youtube_posts if str(p.get("status", "")).lower() != "sent"]
+    pending_statuses = {"draft", "scheduled", "queued", "pending"}
+    insta_other = [p for p in insta_posts if str(p.get("status", "")).lower() in pending_statuses]
+    youtube_other = [p for p in youtube_posts if str(p.get("status", "")).lower() in pending_statuses]
 
     matches, missing_instagram, missing_youtube = choose_matches(insta_sent, youtube_sent)
 
