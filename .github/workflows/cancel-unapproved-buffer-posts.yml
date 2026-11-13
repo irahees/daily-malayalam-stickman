@@ -1,0 +1,23 @@
+name: Cancel unapproved Buffer batch
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/cancel_unapproved_posts.py"
+      - ".github/workflows/cancel-unapproved-buffer-posts.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cancel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Cancel only the seven unapproved posts from run 43440353185
+        run: python src/cancel_unapproved_posts.py
