@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_TTS_MODEL: gemini-3.8-flash-tts
       SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
       SARVAM_TTS_SPEAKER: shubh
       PYTHONUNBUFFERED: "1"
@@ -38,11 +36,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Validate at least one Malayalam TTS provider
+      - name: Validate Sarvam Bulbul v3 key
         shell: bash
         run: |
-          if [ -z "${GEMINI_API_KEY}" ] && [ -z "${SARVAM_API_KEY}" ]; then
-            echo "::error::Add GEMINI_API_KEY or SARVAM_API_KEY to repository Actions secrets."
+          if [ -z "${SARVAM_API_KEY}" ]; then
+            echo "::error::Add SARVAM_API_KEY to repository Actions secrets."
             exit 1
           fi
       - name: Select offline Malayalam script
@@ -66,5 +64,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Publishing is deliberately not part of this workflow. Review and approve
-# the generated video before using a separate publishing action.
+# Generation only. Publishing must use a separate reviewed/approved workflow.
