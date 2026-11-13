@@ -37,6 +37,25 @@ class BufferSyncTests(unittest.TestCase):
         self.assertEqual(missing_ig, [])
         self.assertEqual(missing_yt, [])
 
+    def test_unmatched_report_explains_best_candidate_without_forcing_a_match(self):
+        source = {
+            "id": "yt-2",
+            "text": "An original Malayalam stickman story",
+            "createdAt": "2026-11-13T10:00:00Z",
+            "assets": [{"source": "https://cdn.example/yt.mp4", "mimeType": "video/mp4"}],
+        }
+        candidate = {
+            "id": "ig-2",
+            "text": "A completely different caption",
+            "createdAt": "2026-11-13T10:00:00Z",
+            "assets": [{"source": "https://cdn.example/ig.mp4", "mimeType": "video/mp4"}],
+        }
+        details = sync_platform_posts.best_match_diagnostics([source], [candidate])
+        self.assertEqual(details[0]["unmatched_post_id"], "yt-2")
+        self.assertEqual(details[0]["best_candidates"][0]["candidate_post_id"], "ig-2")
+        self.assertFalse(details[0]["best_candidates"][0]["same_media_url"])
+        self.assertLess(details[0]["best_candidates"][0]["score"], 0.78)
+
     def test_pending_and_sent_statuses_are_buffer_native(self):
         self.assertEqual(
             {"draft", "error", "needs_approval", "scheduled", "sending", "sent"},
