@@ -1,5 +1,11 @@
 name: Weekly Malayalam Bulk Instagram Reels
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/weekly-bulk-reels.yml"
+      - "requirements.txt"
+      - "src/**"
   schedule:
     - cron: "30 2 * * *" # Daily 08:00 IST; generation/storage only
   workflow_dispatch:
