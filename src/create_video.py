@@ -394,15 +394,19 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1152), fill=(30, 42, 48))
     # Six distinct character identities. Each scene keeps its own face, hair and outfit
     # stable across every frame, while the acting/movement remains animated.
-    character_styles = [
-        {"skin": (224,157,112), "light": (246,190,145), "shirt": (37,116,146), "accent": (66,157,178), "pants": (43,51,70), "hair": (48,38,36), "hair_style": 0, "face": 0},
-        {"skin": (170,112,78), "light": (205,148,111), "shirt": (151,73,53), "accent": (218,132,91), "pants": (61,57,67), "hair": (31,27,26), "hair_style": 1, "face": 1},
-        {"skin": (239,190,145), "light": (255,215,178), "shirt": (74,111,74), "accent": (132,169,104), "pants": (65,75,94), "hair": (91,57,37), "hair_style": 2, "face": 2},
-        {"skin": (133,86,62), "light": (177,123,93), "shirt": (117,79,151), "accent": (174,135,206), "pants": (48,55,76), "hair": (27,24,25), "hair_style": 3, "face": 1},
-        {"skin": (205,151,111), "light": (239,190,148), "shirt": (191,139,45), "accent": (237,190,81), "pants": (74,63,53), "hair": (75,48,32), "hair_style": 4, "face": 0},
-        {"skin": (111,72,54), "light": (157,107,82), "shirt": (52,111,102), "accent": (93,165,147), "pants": (40,49,64), "hair": (24,23,26), "hair_style": 5, "face": 2},
-    ]
-    style = character_styles[index % len(character_styles)]
+    # One fixed host identity across every scene: young Kerala man, curly black hair,
+    # medium-brown skin, rust-brown shirt and dark trousers.
+    character_style = {
+        "skin": (132, 83, 59),
+        "light": (177, 121, 91),
+        "shirt": (145, 68, 48),
+        "accent": (191, 111, 83),
+        "pants": (43, 48, 61),
+        "hair": (25, 22, 23),
+        "hair_style": 1,
+        "face": 1,
+    }
+    style = character_style
     skin, skin_light = style["skin"], style["light"]
     outline = (38, 35, 43)
     shirt, shirt_light, trousers = style["shirt"], style["accent"], style["pants"]
