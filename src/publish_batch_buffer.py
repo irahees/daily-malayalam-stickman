@@ -86,6 +86,25 @@ def load_posts(key: str, organization_id: str, channel_id: str) -> list[dict]:
     raise RuntimeError("Buffer returned over 10,000 posts; refusing to continue with incomplete duplicate detection.")
 
 
+def verify_public_video_url(url: str) -> None:
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "DailyMalayalamStickman/1.0"},
+        method="HEAD",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            if response.status != 200:
+                raise RuntimeError(f"Video host returned HTTP {response.status} for the public media URL.")
+            length = response.headers.get("Content-Length")
+            if length and int(length) < 100_000:
+                raise RuntimeError("Public video URL points to an unexpectedly small file.")
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"Buffer cannot fetch the public video URL (HTTP {error.code}).") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise RuntimeError(f"Could not verify the public video URL: {error}") from error
+
+
 def asset_urls(post: dict) -> set[str]:
     return {
         str(asset.get("source")).strip()
@@ -230,6 +249,7 @@ def main() -> None:
         closing = str(scenes[-1]).strip() if scenes else "നിങ്ങളുടെ അഭിപ്രായം കമന്റിൽ പറയൂ."
         tags = hashtags_for(story)
         video_url = f"{base}/{video.name}"
+        verify_public_video_url(video_url)
         instagram_caption = (
             f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Reels"
         )
