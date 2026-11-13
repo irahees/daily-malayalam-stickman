@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
 FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
-FPS = 15
+FPS = 24
 
 TITLE = ""
 LINES: list[str] = []
@@ -691,15 +691,7 @@ def create_voice_sarvam(text: str, destination: Path) -> None:
 
 
 def create_voice(text: str, destination: Path) -> None:
-    """Prefer Gemini when configured; fall back to Sarvam Bulbul v3."""
-    if os.getenv("GEMINI_API_KEY"):
-        try:
-            create_voice_gemini(text, destination)
-            return
-        except RuntimeError as error:
-            print(f"Gemini TTS failed ({error}); attempting Sarvam Bulbul v3 fallback.")
-    else:
-        print("GEMINI_API_KEY is not configured; using Sarvam Bulbul v3.")
+    """Use the configured Sarvam Bulbul v3 Malayalam voice provider only."""
     create_voice_sarvam(text, destination)
 
 def probe_duration(audio: Path) -> float:
@@ -720,7 +712,7 @@ def main():
 
     global TITLE, LINES
     TITLE, LINES = generate_story()
-    # One Gemini TTS call for the complete six-scene narration. Paragraph breaks
+    # One Sarvam TTS call for the complete six-scene narration. Paragraph breaks
     # encourage a natural pause between scenes while keeping the daily request count low.
     narration_text = "\n\n".join(LINES)
     audio = OUT / "narration.wav"
