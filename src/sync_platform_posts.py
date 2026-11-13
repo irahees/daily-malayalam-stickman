@@ -222,16 +222,22 @@ def main() -> None:
 
     insta_posts = get_posts(token, organization["id"], selected["instagram"]["id"])
     youtube_posts = get_posts(token, organization["id"], selected["youtube"]["id"])
-    # Compare all retained Buffer records, but only sent posts are treated as published sources.
+    # Compare published and scheduled Buffer posts independently.
     insta_sent = [p for p in insta_posts if str(p.get("status", "")).lower() == "sent"]
     youtube_sent = [p for p in youtube_posts if str(p.get("status", "")).lower() == "sent"]
-    pending_statuses = {"draft", "scheduled", "queued", "pending"}
+    scheduled_statuses = {"scheduled", "sending"}
+    pending_statuses = {"draft", "needs_approval", "scheduled", "sending"}
+    insta_scheduled = [p for p in insta_posts if str(p.get("status", "")).lower() in scheduled_statuses]
+    youtube_scheduled = [p for p in youtube_posts if str(p.get("status", "")).lower() in scheduled_statuses]
     insta_other = [p for p in insta_posts if str(p.get("status", "")).lower() in pending_statuses]
     youtube_other = [p for p in youtube_posts if str(p.get("status", "")).lower() in pending_statuses]
 
     matches, missing_instagram, missing_youtube = choose_matches(insta_sent, youtube_sent)
+    scheduled_matches, scheduled_missing_instagram, scheduled_missing_youtube = choose_matches(
+        insta_scheduled, youtube_scheduled
+    )
 
-    # A pending/scheduled/draft counterpart is already in progress; do not suggest a duplicate.
+    # A pending/draft counterpart is already in progress; do not suggest a duplicate.
     def already_pending(source: dict, pending: list[dict]) -> bool:
         return any(match_score(source, candidate) >= 0.78 for candidate in pending)
 
@@ -259,11 +265,30 @@ def main() -> None:
             "instagram_sent": len(insta_sent),
             "youtube_sent": len(youtube_sent),
             "matched_pairs": len(matches),
+            "scheduled_matched_pairs": len(scheduled_matches),
+            "instagram_scheduled_unmatched": len(scheduled_missing_instagram),
+            "youtube_scheduled_unmatched": len(scheduled_missing_youtube),
             "missing_on_instagram": len(missing_instagram),
             "missing_on_youtube": len(missing_youtube),
             "drafts_created": len(created),
         },
         "matches": [{"instagram_post_id": a.get("id"), "youtube_post_id": b.get("id"), "score": round(s, 3)} for a, b, s in matches],
+        "scheduled_matches": [
+            {"instagram_post_id": a.get("id"), "youtube_post_id": b.get("id"),
+             "instagram_due_at": a.get("dueAt"), "youtube_due_at": b.get("dueAt"),
+             "score": round(s, 3)}
+            for a, b, s in scheduled_matches
+        ],
+        "instagram_scheduled_unmatched": [
+            {"post_id": p.get("id"), "status": p.get("status"), "due_at": p.get("dueAt"),
+             "title": title_key(p), "video_url_available": bool(media_url(p))}
+            for p in scheduled_missing_instagram
+        ],
+        "youtube_scheduled_unmatched": [
+            {"post_id": p.get("id"), "status": p.get("status"), "due_at": p.get("dueAt"),
+             "title": title_key(p), "video_url_available": bool(media_url(p))}
+            for p in scheduled_missing_youtube
+        ],
         "missing_on_instagram": [{"source_post_id": p.get("id"), "title": title_key(p), "video_url_available": bool(media_url(p))} for p in missing_instagram],
         "missing_on_youtube": [{"source_post_id": p.get("id"), "title": title_key(p), "video_url_available": bool(media_url(p))} for p in missing_youtube],
         "drafts_created": created,
@@ -275,7 +300,10 @@ def main() -> None:
         f"- Generated: {report['generated_at_utc']}",
         f"- Instagram sent posts scanned: {len(insta_sent)}",
         f"- YouTube sent posts scanned: {len(youtube_sent)}",
-        f"- Matched pairs: {len(matches)}",
+        f"- Matched published pairs: {len(matches)}",
+        f"- Matched scheduled pairs: {len(scheduled_matches)}",
+        f"- Unmatched scheduled Instagram posts: {len(scheduled_missing_instagram)}",
+        f"- Unmatched scheduled YouTube posts: {len(scheduled_missing_youtube)}",
         f"- Missing on Instagram: {len(missing_instagram)}",
         f"- Missing on YouTube: {len(missing_youtube)}",
         f"- Buffer drafts created: {len(created)}",
@@ -284,6 +312,21 @@ def main() -> None:
         "",
         "## Missing on Instagram",
     ]
+    lines += ["", "## Scheduled cross-platform matches"]
+    lines += [
+        f"- Instagram {a.get('id')} ↔ YouTube {b.get('id')} | Instagram due {a.get('dueAt')} | YouTube due {b.get('dueAt')}"
+        for a, b, score in scheduled_matches
+    ] or ["- No scheduled pairs matched."]
+    lines += ["", "## Scheduled Instagram posts without a YouTube match"]
+    lines += [
+        f"- {title_key(p) or p.get('id')} | {p.get('id')} | {p.get('dueAt')}"
+        for p in scheduled_missing_instagram
+    ] or ["- None detected."]
+    lines += ["", "## Scheduled YouTube posts without an Instagram match"]
+    lines += [
+        f"- {title_key(p) or p.get('id')} | {p.get('id')} | {p.get('dueAt')}"
+        for p in scheduled_missing_youtube
+    ] or ["- None detected."]
     lines += [f"- {title_key(p) or p.get('id')} — source post {p.get('id')}; video asset {'available' if media_url(p) else 'not available'}" for p in missing_instagram] or ["- None detected."]
     lines += ["", "## Missing on YouTube"]
     lines += [f"- {title_key(p) or p.get('id')} — source post {p.get('id')}; video asset {'available' if media_url(p) else 'not available'}" for p in missing_youtube] or ["- None detected."]
