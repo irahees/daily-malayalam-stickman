@@ -54,7 +54,7 @@ jobs:
           tag="approved-reels-${GITHUB_RUN_ID}"
           gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels ${GITHUB_RUN_ID}" --notes "User-reviewed original Malayalam videos."
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Queue four approved Reels in Buffer
+      - name: Queue the same approved videos to Instagram and YouTube through Buffer
         run: python src/publish_batch_buffer.py
   approval-required:
     if: inputs.approved != true
