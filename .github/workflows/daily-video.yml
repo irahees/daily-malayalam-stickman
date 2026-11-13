@@ -97,6 +97,13 @@ jobs:
         with:
           name: malayalam-short-video
           path: video-artifact
+      - name: Install FFmpeg for Buffer media conversion
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ffmpeg
+          command -v ffmpeg
+          command -v ffprobe
       - name: Prepare public video file
         shell: bash
         run: |
