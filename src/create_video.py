@@ -639,9 +639,76 @@ def create_voice_gemini(text: str, destination: Path) -> None:
     print(f"Gemini TTS audio saved. Model={model}, voice=Charon, bytes={destination.stat().st_size}")
 
 
+def create_voice_elevenlabs(text: str, destination: Path) -> None:
+    """Secondary Malayalam narration provider, used only if Gemini is unavailable."""
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID")
+    if not api_key or not voice_id:
+        raise RuntimeError(
+            "Gemini TTS failed and ElevenLabs fallback is not configured: "
+            "ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID repository secrets are required."
+        )
+
+    import urllib.parse
+    url = "https://api.elevenlabs.io/v1/text-to-speech/" + urllib.parse.quote(voice_id, safe="")
+    payload = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {"stability": 0.55, "similarity_boost": 0.75}
+    }
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+            "xi-api-key": api_key
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=240) as response:
+            audio_bytes = response.read()
+    except urllib.error.HTTPError as error:
+        # Do not print response bodies; they may contain provider diagnostics.
+        raise RuntimeError(f"ElevenLabs fallback HTTP {error.code}.") from error
+    if not audio_bytes or len(audio_bytes) < 1024:
+        raise RuntimeError("ElevenLabs fallback returned empty or invalid audio.")
+
+    mp3_path = destination.with_suffix(".elevenlabs.mp3")
+    try:
+        mp3_path.write_bytes(audio_bytes)
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(mp3_path), "-ac", "1", "-ar", "24000", str(destination)],
+            check=True, capture_output=True, text=True
+        )
+    finally:
+        if mp3_path.exists():
+            mp3_path.unlink()
+    if not destination.is_file() or destination.stat().st_size < 1024:
+        raise RuntimeError("ElevenLabs audio conversion did not produce a valid WAV file.")
+    with destination.open("rb") as audio_file:
+        header = audio_file.read(12)
+    if header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+        raise RuntimeError("ElevenLabs fallback output is not a valid WAV file.")
+    print(f"ElevenLabs fallback audio saved. Model=eleven_multilingual_v2, bytes={destination.stat().st_size}")
+
+
 def create_voice(text: str, destination: Path) -> None:
-    """Gemini TTS is the sole voice-generation provider."""
-    create_voice_gemini(text, destination)
+    """Use Gemini first; use ElevenLabs only after a retryable Gemini failure."""
+    try:
+        create_voice_gemini(text, destination)
+    except RuntimeError as error:
+        message = str(error)
+        retryable = (
+            "Gemini TTS HTTP 429" in message
+            or any(f"Gemini TTS HTTP {status}" in message for status in (500, 502, 503, 504))
+            or "Gemini TTS connection failed" in message
+        )
+        if not retryable:
+            raise
+        print("Gemini TTS unavailable after retries; attempting configured ElevenLabs secondary provider.")
+        create_voice_elevenlabs(text, destination)
 
 def probe_duration(audio: Path) -> float:
     result = subprocess.run(
