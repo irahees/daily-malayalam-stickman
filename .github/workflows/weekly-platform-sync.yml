@@ -1,0 +1,61 @@
+name: Weekly YouTube Instagram Sync Audit
+
+on:
+  schedule:
+    - cron: "30 13 * * 0" # Sunday 19:00 IST
+  workflow_dispatch:
+    inputs:
+      create_missing_drafts:
+        description: "After reviewing this report, create Buffer drafts for missing counterparts (does not publish)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-youtube-instagram-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate sync script syntax
+        run: python -m py_compile src/sync_platform_posts.py
+      - name: Verify Buffer connection
+        shell: bash
+        run: |
+          if [ -z "$BUFFER_API_KEY" ]; then
+            echo "::error::BUFFER_API_KEY is missing from repository Actions secrets."
+            exit 1
+          fi
+      - name: Compare Instagram and YouTube post history
+        env:
+          CREATE_MISSING_DRAFTS: ${{ github.event_name == 'workflow_dispatch' && inputs.create_missing_drafts }}
+        run: |
+          set -euo pipefail
+          if [ "$CREATE_MISSING_DRAFTS" = "true" ]; then
+            python src/sync_platform_posts.py --apply-approved
+          else
+            python src/sync_platform_posts.py
+          fi
+      - name: Save sync report
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-instagram-sync-report
+          path: output/platform-sync/
+          if-no-files-found: error
+          retention-days: 30

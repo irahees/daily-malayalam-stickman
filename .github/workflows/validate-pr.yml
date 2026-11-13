@@ -1,0 +1,48 @@
+name: Validate Malayalam video and Buffer pipeline
+
+on:
+  push:
+    branches:
+      - feature/two-way-platform-sync
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Compile all project Python files
+        run: python -m compileall -q src tests
+      - name: Run offline Buffer and sync tests
+        run: python -m unittest discover -s tests -v
+      - name: Run read-only live Buffer parity audit
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$BUFFER_API_KEY"
+          python src/sync_platform_posts.py
+      - name: Upload read-only Buffer audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buffer-live-audit
+          path: output/platform-sync/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,7 +1,7 @@
 name: Weekly Malayalam Bulk Instagram Reels
 on:
   schedule:
-    - cron: "30 12 * * 0" # Sunday 18:00 IST
+    - cron: "30 2 * * *" # Daily 08:00 IST; generation/storage only
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,9 +22,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg fonts-noto-core
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg fonts-noto-core fonts-noto-extra libraqm-dev libharfbuzz-dev libfribidi-dev pkg-config
+          fc-match -f '%{file}\n' 'Noto Sans Malayalam:lang=ml' | grep -q '/'
+
       - name: Install Python packages
-        run: pip install -r requirements.txt
+        run: pip install --no-binary=Pillow -r requirements.txt
+      - name: Verify Malayalam shaping support
+        run: python -c "from PIL import ImageFont, features; assert features.check('raqm'), 'Pillow RAQM shaping support is required for Malayalam'; print('RAQM shaping enabled')"
       - name: Validate Sarvam key
         run: test -n "$SARVAM_API_KEY"
       - name: Generate seven videos and growth tracker

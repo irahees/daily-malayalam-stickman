@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
 FRAMES = OUT / "frames"
 WIDTH, HEIGHT = 720, 1280
-FPS = 24
+FPS = 30
 
 TITLE = ""
 LINES: list[str] = []
@@ -40,25 +40,48 @@ def generate_story() -> tuple[str, list[str]]:
     print(f"Loaded offline Malayalam story: {title}")
     return title, scenes
 
-def find_font(bold: bool = False) -> str | None:
+def find_font(bold: bool = False) -> str:
+    """Resolve a real Malayalam-capable font; never silently fall back to Pillow's bitmap font."""
     candidates = []
     if bold:
-        candidates += ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf"]
-    candidates += [
+        candidates.append("/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf")
+    candidates.extend([
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam[wght].ttf",
         "/usr/share/fonts/truetype/NotoSansMalayalam-Regular.ttf",
-    ]
+    ])
     for candidate in candidates:
-        if Path(candidate).exists():
+        if Path(candidate).is_file():
             return candidate
-    return None
+    # Fontconfig knows the installed font's actual filename on Ubuntu runners.
+    try:
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Noto Sans Malayalam:lang=ml"],
+            check=True, capture_output=True, text=True, timeout=10
+        )
+        candidate = result.stdout.strip()
+        if candidate and Path(candidate).is_file():
+            return candidate
+    except (OSError, subprocess.SubprocessError):
+        pass
+    raise RuntimeError(
+        "Malayalam font not found. Install fonts-noto-core/fonts-noto-extra; "
+        "refusing to render Malayalam as empty squares."
+    )
 
 
 @lru_cache(maxsize=32)
 def get_font(size: int, bold: bool = False):
     path = find_font(bold)
-    return ImageFont.truetype(path, size) if path else ImageFont.load_default()
+    if not getattr(ImageFont, "Layout", None) or not hasattr(ImageFont.Layout, "RAQM"):
+        raise RuntimeError(
+            "Pillow was built without RAQM shaping support; Malayalam conjuncts "
+            "would render incorrectly. Install libraqm support before rendering."
+        )
+    try:
+        return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.RAQM)
+    except Exception as error:
+        raise RuntimeError(f"Unable to shape Malayalam text with font {path}: {error}") from error
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
@@ -254,17 +277,56 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
         return labels[index]
 
     if fuel:
-        labels=["PETROL PUMP","FUEL DELIVERY","TRANSPORT","ELECTRIC VEHICLE","SUPPLY CHAIN","YOUR CHOICE"]
-        draw.rectangle((0,0,720,1280), fill=(202,218,221))
-        draw.rectangle((0,900,720,1280), fill=(87,100,88))
-        if index in (0,1,2,3,4):
-            draw.rectangle((65,300,655,850), fill=(235,230,208), outline=ink, width=7)
-            draw.rectangle((65,300,655,390), fill=(194,42,35))
-            draw.text((170,320), "FUEL STATION", font=get_font(38,True), fill=(255,238,190))
-            draw.rounded_rectangle((180,470,340,760), radius=20, fill=(52,62,70), outline=ink, width=6)
-            draw.rectangle((210,510,310,600), fill=(90,180,190))
-            draw.line((340,560,440,680), fill=ink, width=12)
-            draw.rounded_rectangle((430,650,485,820), radius=14, fill=(194,48,38), outline=ink, width=5)
+        labels = ["PETROL STATION", "FUEL TANKER", "ROAD TRAFFIC", "ELECTRIC VEHICLE", "FUEL SUPPLY", "YOUR CHOICE"]
+        # Keep the same location language across the sequence, with scene-specific foreground props.
+        draw.rectangle((0, 0, 720, 1280), fill=(143, 202, 232))
+        # Distant Kerala skyline, palms and roadside greenery.
+        draw.rectangle((0, 690, 720, 940), fill=(106, 153, 100))
+        for tx, ty in ((45, 470), (655, 455)):
+            draw.rectangle((tx-7, ty+85, tx+7, 760), fill=(105, 73, 48))
+            draw.ellipse((tx-68, ty-20, tx+4, ty+110), fill=(43, 119, 76))
+            draw.ellipse((tx-5, ty-50, tx+70, ty+95), fill=(48, 133, 80))
+        # Large branded canopy with visible roof depth and support columns.
+        draw.polygon([(55, 405), (610, 405), (675, 485), (5, 485)], fill=(224, 229, 225), outline=ink)
+        draw.polygon([(55, 405), (610, 405), (675, 485), (5, 485)], fill=(237, 239, 228), outline=ink)
+        draw.rectangle((28, 470, 692, 515), fill=(191, 43, 39), outline=ink, width=4)
+        for cx in (125, 355, 585):
+            draw.rectangle((cx-13, 485, cx+13, 850), fill=(231, 226, 207), outline=ink, width=4)
+        # Station shop and glass frontage.
+        draw.rectangle((75, 515, 645, 850), fill=(242, 233, 207), outline=ink, width=6)
+        draw.rectangle((95, 540, 625, 620), fill=(194, 43, 38), outline=ink, width=4)
+        draw.text((205, 555), "PETROL STATION", font=get_font(30, True), fill=(255, 245, 215))
+        draw.rectangle((110, 650, 610, 830), fill=(142, 192, 202), outline=ink, width=5)
+        for wx in (275, 440):
+            draw.line((wx, 650, wx, 830), fill=(245, 244, 224), width=7)
+        # Three clearly recognizable fuel dispensers in the foreground.
+        for px in (165, 360, 555):
+            draw.rounded_rectangle((px-48, 680, px+48, 865), radius=13, fill=(231, 235, 230), outline=ink, width=6)
+            draw.rounded_rectangle((px-31, 700, px+31, 750), radius=7, fill=(38, 54, 65), outline=ink, width=3)
+            draw.rectangle((px-20, 712, px+20, 738), fill=(119, 206, 174))
+            draw.rectangle((px-30, 770, px+30, 840), fill=(194, 43, 38), outline=ink, width=3)
+            draw.line((px+46, 720, px+65, 775, px+61, 830), fill=(37, 43, 49), width=7)
+            draw.line((px+61, 830, px+49, 842), fill=(37, 43, 49), width=8)
+        # Road apron, lane markings and a moving car/tanker depending on the beat.
+        draw.rectangle((0, 900, 720, 1280), fill=(63, 73, 77))
+        draw.line((0, 1060, 720, 1060), fill=(242, 219, 153), width=8)
+        for dash_x in (60, 210, 360, 510, 660):
+            draw.line((dash_x, 1135, dash_x+70, 1135), fill=(242, 242, 224), width=7)
+        if index == 1:
+            draw.rounded_rectangle((85, 895, 485, 1085), radius=30, fill=(231, 226, 205), outline=ink, width=7)
+            draw.rectangle((115, 925, 435, 1045), fill=(223, 231, 225), outline=ink, width=4)
+            draw.rectangle((435, 950, 565, 1085), fill=(190, 48, 39), outline=ink, width=6)
+            draw.ellipse((150, 1050, 230, 1130), fill=(35, 39, 43), outline=ink, width=5)
+            draw.ellipse((455, 1050, 535, 1130), fill=(35, 39, 43), outline=ink, width=5)
+        elif index in (2, 3, 4):
+            car_x = 90 + int((frame * 3) % 430)
+            draw.rounded_rectangle((car_x, 970, car_x+205, 1080), radius=28, fill=(53, 117, 165), outline=ink, width=6)
+            draw.polygon([(car_x+38, 970), (car_x+78, 920), (car_x+160, 920), (car_x+185, 970)], fill=(135, 192, 207), outline=ink)
+            for wheel_x in (car_x+45, car_x+160):
+                draw.ellipse((wheel_x-25, 1050, wheel_x+25, 1100), fill=(34, 38, 42), outline=ink, width=4)
+        if index == 5:
+            draw.rounded_rectangle((190, 910, 530, 1085), radius=24, fill=(250, 238, 204), outline=ink, width=6)
+            draw.text((245, 965), "FUEL OR EV?", font=get_font(30, True), fill=(47, 58, 62))
         return labels[index]
 
     if shop:
@@ -392,21 +454,17 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     # outlined clothes, hands and shoes. Subtle motion keeps the character alive.
     shadow_width = int(76 + 12 * action_pulse)
     draw.ellipse((x-shadow_width, 1110, x+shadow_width, 1152), fill=(30, 42, 48))
-    # Six distinct character identities. Each scene keeps its own face, hair and outfit
-    # stable across every frame, while the acting/movement remains animated.
-    # One fixed host identity across every scene: young Kerala man, curly black hair,
-    # medium-brown skin, rust-brown shirt and dark trousers.
-    character_style = {
-        "skin": (132, 83, 59),
-        "light": (177, 121, 91),
-        "shirt": (145, 68, 48),
-        "accent": (191, 111, 83),
-        "pants": (43, 48, 61),
-        "hair": (25, 22, 23),
-        "hair_style": 1,
-        "face": 1,
-    }
-    style = character_style
+    # Six distinct 2D character designs. Each scene has a stable identity,
+    # while the same character stays consistent across all frames in that scene.
+    character_styles = [
+        {"skin": (132, 83, 59), "light": (177, 121, 91), "shirt": (55, 119, 93), "accent": (105, 174, 139), "pants": (43, 48, 61), "hair": (25, 22, 23), "hair_style": 0, "face": 0},
+        {"skin": (176, 119, 85), "light": (211, 157, 119), "shirt": (53, 101, 155), "accent": (107, 155, 204), "pants": (55, 58, 73), "hair": (38, 29, 24), "hair_style": 2, "face": 1},
+        {"skin": (105, 66, 49), "light": (153, 103, 78), "shirt": (191, 133, 48), "accent": (230, 181, 83), "pants": (48, 55, 70), "hair": (28, 24, 22), "hair_style": 3, "face": 2},
+        {"skin": (151, 96, 69), "light": (190, 132, 99), "shirt": (111, 75, 145), "accent": (163, 123, 194), "pants": (46, 52, 65), "hair": (35, 27, 25), "hair_style": 4, "face": 0},
+        {"skin": (188, 137, 101), "light": (220, 169, 128), "shirt": (44, 128, 139), "accent": (94, 183, 185), "pants": (52, 58, 72), "hair": (43, 31, 26), "hair_style": 5, "face": 1},
+        {"skin": (132, 83, 59), "light": (177, 121, 91), "shirt": (145, 68, 48), "accent": (191, 111, 83), "pants": (43, 48, 61), "hair": (25, 22, 23), "hair_style": 1, "face": 1},
+    ]
+    style = character_styles[index % len(character_styles)]
     skin, skin_light = style["skin"], style["light"]
     outline = (38, 35, 43)
     shirt, shirt_light, trousers = style["shirt"], style["accent"], style["pants"]
@@ -546,102 +604,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
         y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
-    sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=84, optimize=False)
-
-def create_voice_gemini(text: str, destination: Path) -> None:
-    """Generate Malayalam narration as WAV using Gemini 3.8 Flash TTS."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing from GitHub Actions repository secrets.")
-
-    model = os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
-    # Charon is an informative narration voice. Malayalam is detected from the
-    # transcript; the style request asks for clear, natural Kerala Malayalam.
-    payload = {
-        "model": model,
-        "input": [{
-            "type": "user_input",
-            "content": [{
-                "type": "text",
-                "text": text,
-                "annotations": [{
-                    "type": "speech_metadata",
-                    "style": "Speak clearly and naturally in Malayalam with a warm, engaging Kerala Malayalam narration style. Use a confident, conversational explainer delivery at a moderate pace. Pronounce every Malayalam word accurately. Treat each paragraph as the next scene and make a short natural pause between paragraphs. Do not translate, paraphrase, or add any words."
-                }]
-            }]
-        }],
-        "response_format": {"type": "audio"},
-        "generation_config": {"speech_config": [{"voice": "Charon"}]}
-    }
-    request = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/interactions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-            "Accept": "application/json"
-        },
-        method="POST"
-    )
-
-    audio_bytes = None
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(request, timeout=240) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            # Gemini Interactions API returns generated audio inside
-            # steps[].content[].data (not output_audio.data).
-            encoded = None
-            for step in result.get("steps", []):
-                for item in step.get("content", []):
-                    if item.get("type") == "audio" and item.get("data"):
-                        encoded = item["data"]
-                        break
-                    if item.get("data") and item.get("mime_type", "").startswith("audio/"):
-                        encoded = item["data"]
-                        break
-                if encoded:
-                    break
-            # Be tolerant of response variants that omit the content type.
-            if not encoded:
-                for step in result.get("steps", []):
-                    for item in step.get("content", []):
-                        if item.get("data"):
-                            encoded = item["data"]
-                            break
-                    if encoded:
-                        break
-            if not encoded:
-                raise RuntimeError(
-                    "Gemini TTS completed but no audio data was found in steps[].content[].data: "
-                    + json.dumps(result, ensure_ascii=False)[:1200]
-                )
-            import base64
-            audio_bytes = base64.b64decode(encoded, validate=True)
-            break
-        except urllib.error.HTTPError as error:
-            details = error.read().decode("utf-8", errors="replace")
-            if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
-                raise RuntimeError(f"Gemini TTS HTTP {error.code}: {details[:1200]}") from error
-            delay = min(60, 2 ** (attempt + 1))
-            print(f"Gemini TTS temporarily returned HTTP {error.code}; retrying in {delay}s.")
-            time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError) as error:
-            if attempt == 3:
-                raise RuntimeError(f"Gemini TTS connection failed: {error}") from error
-            delay = min(30, 2 ** (attempt + 1))
-            print(f"Gemini TTS connection issue; retrying in {delay}s.")
-            time.sleep(delay)
-
-    if not audio_bytes or len(audio_bytes) < 1024:
-        raise RuntimeError("Gemini TTS returned an empty or invalid WAV response.")
-    destination.write_bytes(audio_bytes)
-    if not destination.exists() or destination.stat().st_size < 1024:
-        raise RuntimeError("Gemini TTS WAV file could not be saved.")
-    if audio_bytes[:4] != b"RIFF" or audio_bytes[8:12] != b"WAVE":
-        raise RuntimeError("Gemini TTS response was not a valid WAV file (RIFF/WAVE header missing).")
-    print(f"Gemini TTS audio saved. Model={model}, voice=Charon, bytes={destination.stat().st_size}")
-
+    sky.save(FRAMES / f"frame_{output_frame:06d}.jpg", quality=92, subsampling=0, optimize=True)
 
 def create_voice_sarvam(text: str, destination: Path) -> None:
     """Generate Malayalam narration using Sarvam Bulbul v3."""
@@ -743,8 +706,8 @@ def main():
         "ffmpeg", "-y", "-framerate", str(FPS), "-i",
         str(FRAMES / "frame_%06d.jpg"), "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", "scale=1080:1920:flags=bicubic,setsar=1",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-vf", "scale=1080:1920:flags=lanczos,setsar=1",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", "30", "-fps_mode", "cfr",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
         "-shortest", "-movflags", "+faststart", str(final_video)
     ], check=True)
