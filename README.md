@@ -4,7 +4,7 @@ A free-first automation project for creating vertical Malayalam stickman videos 
 
 ## Current stage
 
-Daily video generation runs separately from publishing. A manual Buffer workflow is now available for sending a generated video to Instagram Reels and YouTube Shorts.
+The daily workflow generates a Malayalam video, saves a review artifact, hosts a public media copy as a GitHub Release asset, and sends it to the connected Instagram and YouTube channels through Buffer. A separate manual workflow can also publish a previously generated artifact.
 
 ### Planned pipeline
 1. Generate an original Malayalam story and narration.
@@ -12,7 +12,7 @@ Daily video generation runs separately from publishing. A manual Buffer workflow
 3. Generate Malayalam voice audio and timed subtitles.
 4. Render an MP4 with FFmpeg.
 5. Prepare platform-specific captions and metadata.
-6. Manually trigger the Buffer publishing workflow when you want to send a selected video to Instagram and YouTube.
+6. Publish the generated video to connected Instagram Reels and YouTube Shorts through Buffer after a successful generation run.
 
 ## Important limitations
 - GitHub Actions is the scheduler and runner, not permanent video storage.
@@ -20,7 +20,7 @@ Daily video generation runs separately from publishing. A manual Buffer workflow
 - Free AI and text-to-speech services have quotas and may change or stop working.
 - Instagram publishing requires an eligible professional account and Meta permissions.
 - YouTube uploads require Google OAuth and YouTube Data API access.
-- Publishing is never triggered by the daily generation schedule; it requires a separate manual workflow run.
+- The daily workflow includes an automatic Buffer publishing job. It runs only after video generation and artifact validation succeed.
 - Never commit API keys, OAuth tokens, passwords, or private account data.
 
 ## Local test
@@ -42,11 +42,11 @@ Do not add secrets until the relevant integration is implemented. Use GitHub rep
 
 ## Publish through Buffer (manual)
 
-The `Publish Malayalam Short to Instagram + YouTube via Buffer` workflow is a separate, manual action. It does not run during normal daily video generation.
+The daily workflow automatically sends a successfully generated video to Buffer. The `Publish Existing Malayalam Video` workflow is also available for manually sending a selected previous artifact.
 
 1. Add the Buffer personal API key as the repository Actions secret `BUFFER_API_KEY` (never commit the key).
-2. Open the Actions tab and choose `Publish Malayalam Short to Instagram + YouTube via Buffer`.
-3. Choose the successful video-generation run ID (the current verified video is run `43255563877`) and run the workflow.
-4. The workflow downloads that run's artifact, hosts the MP4 on a public raw GitHub media branch so Buffer can fetch it, then sends an immediate Reel and YouTube Short to the matching connected Buffer channels.
+2. Add `SARVAM_API_KEY` for Malayalam Bulbul v3 TTS, or keep `GEMINI_API_KEY` configured as the preferred TTS provider.
+3. The daily workflow publishes after video generation. It creates a unique public GitHub Release asset URL because Buffer fetches video files from public HTTPS URLs.
+4. The manual workflow can publish a previous successful artifact by run ID.
 
-The video file in the release is publicly accessible. The publishing script requires exactly one active Instagram channel and one active YouTube channel in the Buffer account; it stops rather than guessing if either is missing or duplicated. AI-generated-content disclosure is enabled in both channel metadata. Buffer must have permission to publish to both channels, and channel-specific publishing restrictions still apply.
+The MP4 in each GitHub Release is publicly accessible. The publisher requires exactly one Instagram channel and one YouTube channel in the Buffer account; it stops rather than guessing if either is missing or duplicated. AI-generated-content disclosure is enabled in both channel metadata. Buffer must have permission to publish to both channels, and channel-specific publishing restrictions still apply.
