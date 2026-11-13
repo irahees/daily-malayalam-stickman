@@ -72,7 +72,7 @@ def main() -> None:
         channel_data = graphql(api_key, """
           query GetChannels($organizationId: OrganizationId!) {
             channels(input: { organizationId: $organizationId }) {
-              id name displayName service isDisconnected isLocked isQueuePaused
+              id name displayName service isQueuePaused
             }
           }
         """, {"organizationId": organization["id"]})
@@ -83,8 +83,6 @@ def main() -> None:
         matches = [
             channel for channel in channels
             if str(channel.get("service", "")).lower() == service
-            and not channel.get("isDisconnected")
-            and not channel.get("isLocked")
         ]
         if len(matches) > 1:
             names = ", ".join(str(item.get("name")) for item in matches)
