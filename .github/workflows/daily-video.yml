@@ -26,8 +26,8 @@ jobs:
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_TTS_MODEL: gemini-3.8-flash-tts
-      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+      SARVAM_TTS_SPEAKER: shubh
       PYTHONUNBUFFERED: "1"
     steps:
       - name: Checkout source
@@ -47,11 +47,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Validate Gemini TTS secret
+      - name: Validate at least one TTS provider
         shell: bash
         run: |
-          if [ -z "${GEMINI_API_KEY}" ]; then
-            echo "::error::GEMINI_API_KEY is missing from GitHub Actions repository secrets."
+          if [ -z "${GEMINI_API_KEY}" ] && [ -z "${SARVAM_API_KEY}" ]; then
+            echo "::error::Add GEMINI_API_KEY or SARVAM_API_KEY to repository Actions secrets."
             exit 1
           fi
       - name: Select offline Malayalam script
