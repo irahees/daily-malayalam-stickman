@@ -1,0 +1,81 @@
+name: Weekly Malayalam Bulk Instagram Reels
+on:
+  schedule:
+    - cron: "30 12 * * 0" # Sunday 18:00 IST
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: weekly-malayalam-bulk-reels
+  cancel-in-progress: false
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+      SARVAM_TTS_SPEAKER: shubh
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install FFmpeg and Malayalam fonts
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg fonts-noto-core
+      - name: Install Python packages
+        run: pip install -r requirements.txt
+      - name: Validate Sarvam key
+        run: test -n "$SARVAM_API_KEY"
+      - name: Generate seven videos
+        run: python src/create_batch.py
+      - name: Verify batch
+        run: |
+          test "$(find output/batch -maxdepth 1 -name '*.mp4' | wc -l)" -eq 7
+          for f in output/batch/*.mp4; do ffprobe -v error -show_entries format=duration -of csv=p=0 "$f"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: malayalam-weekly-reels
+          path: output/batch/*
+          retention-days: 14
+  queue:
+    needs: generate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      VIDEO_ARTIFACT_DIR: video-artifact
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: malayalam-weekly-reels
+          path: video-artifact
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg
+      - name: Convert to 30 FPS
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/media"
+          for f in video-artifact/*.mp4; do
+            n="$(basename "$f")"
+            ffmpeg -y -i "$f" -map 0:v:0 -map '0:a?' -vf "fps=30,format=yuv420p" -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/media/$n"
+            cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
+            ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n"
+          done
+      - name: Host videos on GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="weekly-reels-${GITHUB_RUN_ID}"
+          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Weekly Malayalam Reels ${GITHUB_RUN_ID}" --notes "Seven original Malayalam videos for Buffer."
+          echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
+      - name: Queue seven Reels in Buffer
+        run: python src/publish_batch_buffer.py
