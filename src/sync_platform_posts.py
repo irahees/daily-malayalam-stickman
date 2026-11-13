@@ -132,6 +132,35 @@ def get_posts(token: str, organization_id: str, channel_id: str) -> list[dict]:
     raise RuntimeError("Buffer returned more than 5,000 posts; refusing to silently truncate the sync check.")
 
 
+def best_match_diagnostics(unmatched: list[dict], candidates: list[dict]) -> list[dict]:
+    """Explain why each unmatched post did not pair; diagnostics never auto-match."""
+    details = []
+    for source in unmatched:
+        ranked = sorted(
+            ((match_score(source, candidate), candidate) for candidate in candidates),
+            key=lambda item: item[0],
+            reverse=True,
+        )
+        best = []
+        for score, candidate in ranked[:3]:
+            best.append({
+                "candidate_post_id": candidate.get("id"),
+                "candidate_title": title_key(candidate),
+                "score": round(score, 3),
+                "same_media_url": bool(
+                    media_url(source) and media_url(source) == media_url(candidate)
+                ),
+                "source_created_at": source.get("createdAt"),
+                "candidate_created_at": candidate.get("createdAt"),
+            })
+        details.append({
+            "unmatched_post_id": source.get("id"),
+            "unmatched_title": title_key(source),
+            "best_candidates": best,
+        })
+    return details
+
+
 def choose_matches(insta: list[dict], youtube: list[dict]) -> tuple[list[tuple[dict, dict, float]], list[dict], list[dict]]:
     candidates = []
     for i, a in enumerate(insta):
@@ -273,6 +302,14 @@ def main() -> None:
             "drafts_created": len(created),
         },
         "matches": [{"instagram_post_id": a.get("id"), "youtube_post_id": b.get("id"), "score": round(s, 3)} for a, b, s in matches],
+        "unmatched_youtube_match_diagnostics": best_match_diagnostics(missing_instagram, youtube_sent),
+        "unmatched_instagram_match_diagnostics": best_match_diagnostics(missing_youtube, insta_sent),
+        "status_counts": {
+            "instagram": {status: sum(1 for p in insta_posts if str(p.get("status", "")).lower() == status)
+                          for status in sorted({str(p.get("status", "")).lower() for p in insta_posts})},
+            "youtube": {status: sum(1 for p in youtube_posts if str(p.get("status", "")).lower() == status)
+                        for status in sorted({str(p.get("status", "")).lower() for p in youtube_posts})},
+        },
         "scheduled_matches": [
             {"instagram_post_id": a.get("id"), "youtube_post_id": b.get("id"),
              "instagram_due_at": a.get("dueAt"), "youtube_due_at": b.get("dueAt"),
@@ -328,6 +365,11 @@ def main() -> None:
         for p in scheduled_missing_youtube
     ] or ["- None detected."]
     lines += [f"- {title_key(p) or p.get('id')} — source post {p.get('id')}; video asset {'available' if media_url(p) else 'not available'}" for p in missing_instagram] or ["- None detected."]
+    lines += ["", "## Why unmatched YouTube posts did not pair"]
+    for item in report["unmatched_youtube_match_diagnostics"]:
+        lines.append(f"- {item['unmatched_title'] or item['unmatched_post_id']}: " +
+                     (", ".join(f"{c['candidate_post_id']} score={c['score']} same_media_url={c['same_media_url']}"
+                                for c in item["best_candidates"]) or "no Instagram sent candidates"))
     lines += ["", "## Missing on YouTube"]
     lines += [f"- {title_key(p) or p.get('id')} — source post {p.get('id')}; video asset {'available' if media_url(p) else 'not available'}" for p in missing_youtube] or ["- None detected."]
     if created:
