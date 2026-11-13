@@ -1,42 +1,60 @@
-name: Publish approved Malayalam Reels batch
+name: Auto-publish generated Malayalam Reels batch
+
 on:
-  workflow_dispatch:
-    inputs:
-      source_run_id:
-        description: "GitHub Actions run ID that created the batch artifact"
-        required: true
-        type: string
-      approved:
-        description: "Confirm that you watched and approved the generated videos for posting"
-        required: true
-        type: boolean
-        default: false
+  workflow_run:
+    workflows: ["Weekly Malayalam Bulk Instagram Reels"]
+    types: [completed]
+
 permissions:
   contents: write
   actions: read
+
+concurrency:
+  group: auto-publish-malayalam-batch
+  cancel-in-progress: false
+
 jobs:
   publish:
-    if: inputs.approved == true
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
       VIDEO_ARTIFACT_DIR: video-artifact
     steps:
       - uses: actions/checkout@v4
-      - name: Download approved batch artifact
+      - name: Verify Buffer connection secret
+        shell: bash
+        run: |
+          if [ -z "$BUFFER_API_KEY" ]; then
+            echo "::error::BUFFER_API_KEY is missing from repository Actions secrets."
+            exit 1
+          fi
+      - name: Download completed seven-video batch
         uses: actions/download-artifact@v4
         with:
           name: malayalam-weekly-reels
           path: video-artifact
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify all seven videos and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find video-artifact -maxdepth 1 -name '*.mp4' | wc -l)" -eq 7
+          for f in video-artifact/*.mp4; do
+            test -s "$f"
+            test -s "${f%.mp4}.json"
+          done
+          test -s video-artifact/07_tracker.csv
       - name: Install FFmpeg
         run: |
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=5 update
           sudo apt-get -o Acquire::Retries=5 install -y ffmpeg
-      - name: Convert all seven videos to 30 FPS
+      - name: Convert videos to 30 FPS and prepare release assets
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/media"
@@ -44,22 +62,17 @@ jobs:
             n="$(basename "$f")"
             ffmpeg -y -i "$f" -map 0:v:0 -map '0:a?' -vf "fps=30,format=yuv420p" -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/media/$n"
             cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
-            ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n"
+            test "$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n")" = "30/1"
           done
       - name: Host videos as public GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
-          tag="approved-reels-${GITHUB_RUN_ID}"
-          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels ${GITHUB_RUN_ID}" --notes "User-reviewed original Malayalam videos."
+          source_run_id="${{ github.event.workflow_run.id }}"
+          tag="auto-published-reels-$source_run_id"
+          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Malayalam Reels $source_run_id" --notes "Automatically approved batch for the connected YouTube and Instagram channels."
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Queue the same approved videos to Instagram and YouTube through Buffer
+      - name: Queue all seven videos on Instagram and YouTube through Buffer
         run: python src/publish_batch_buffer.py
-  approval-required:
-    if: inputs.approved != true
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "::error::Publishing stopped. Review the videos and rerun with approved=true."
-          exit 1
