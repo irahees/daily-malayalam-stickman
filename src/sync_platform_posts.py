@@ -93,12 +93,12 @@ def match_score(a: dict, b: dict) -> float:
 
 
 def get_posts(token: str, organization_id: str, channel_id: str) -> list[dict]:
-    query = """
-      query SyncPosts($organizationId: OrganizationId!, $channelIds: [String!]!, $first: Int!, $after: String) {
+    query_template = """
+      query SyncPosts {
         posts(
-          first: $first,
-          after: $after,
-          input: { organizationId: $organizationId, filter: { channelIds: $channelIds } }
+          first: __FIRST__,
+          after: __AFTER__,
+          input: { organizationId: __ORG__, filter: { channelIds: [__CHANNEL__] } }
         ) {
           pageInfo { hasNextPage endCursor }
           edges {
@@ -113,13 +113,13 @@ def get_posts(token: str, organization_id: str, channel_id: str) -> list[dict]:
     all_posts: list[dict] = []
     cursor = None
     for _ in range(100):
-        variables = {
-            "organizationId": organization_id,
-            "channelIds": [channel_id],
-            "first": PAGE_SIZE,
-            "after": cursor,
-        }
-        data = gql(token, query, variables)
+        after_value = json.dumps(cursor) if cursor else "null"
+        query = (query_template
+                 .replace("__FIRST__", str(PAGE_SIZE))
+                 .replace("__AFTER__", after_value)
+                 .replace("__ORG__", json.dumps(organization_id))
+                 .replace("__CHANNEL__", json.dumps(channel_id)))
+        data = gql(token, query)
         connection = data.get("posts") or {}
         all_posts.extend(edge.get("node") or {} for edge in connection.get("edges") or [])
         page = connection.get("pageInfo") or {}
