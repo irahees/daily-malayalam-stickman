@@ -1,16 +1,20 @@
-name: Weekly Malayalam Bulk Instagram Reels
+name: Daily Malayalam Video Batch
 on:
   push:
     branches: [main]
     paths:
       - ".github/workflows/weekly-bulk-reels.yml"
-      - "requirements.txt"
-      - "src/**"
   schedule:
-    - cron: "30 2 * * *" # Daily 08:00 IST; generation/storage only
+    - cron: "30 2 * * *" # Daily 08:00 IST; generation and storage only
   workflow_dispatch:
+
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: daily-malayalam-video-generation
+  cancel-in-progress: false
+
 jobs:
   generate:
     runs-on: ubuntu-24.04
@@ -29,28 +33,41 @@ jobs:
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=5 update
           sudo apt-get -o Acquire::Retries=5 install -y ffmpeg fonts-noto-core fonts-noto-extra libraqm-dev libharfbuzz-dev libfribidi-dev libjpeg-dev pkg-config
-          fc-match -f '%{file}\n' 'Noto Sans Malayalam:lang=ml' | grep -q '/'
-
+          fc-match -f '%{file}\\n' 'Noto Sans Malayalam:lang=ml' | grep -q '/'
       - name: Install Python packages
         run: pip install --no-binary=Pillow -r requirements.txt
       - name: Verify Malayalam shaping support
-        run: python -c "from PIL import ImageFont, features; assert features.check('raqm'), 'Pillow RAQM shaping support is required for Malayalam'; print('RAQM shaping enabled')"
+        run: python -c "from PIL import features; assert features.check('raqm'), 'Pillow RAQM shaping support is required for Malayalam'; print('RAQM shaping enabled')"
       - name: Validate Sarvam key
         run: test -n "$SARVAM_API_KEY"
-      - name: Generate seven videos and growth tracker
+      - name: Generate six distinct videos and append the growth tracker
         run: python src/create_batch.py
-      - name: Verify batch
+      - name: Verify six videos, metadata, captions, SEO and tracker
         run: |
           set -euo pipefail
-          test "$(find output/batch -maxdepth 1 -name '*.mp4' | wc -l)" -eq 7
+          test "$(find output/batch -maxdepth 1 -name '*.mp4' | wc -l)" -eq 6
+          test "$(find output/batch -maxdepth 1 -name '*.json' | wc -l)" -eq 6
           test -s output/batch/07_tracker.csv
           for f in output/batch/*.mp4; do
             test -s "$f"
-            ffprobe -v error -show_entries format=duration -of csv=p=0 "$f"
+            test -s "${f%.mp4}.json"
+            ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" | grep -Eq '^[0-9]+([.][0-9]+)?$'
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: malayalam-weekly-reels
+          name: malayalam-daily-reels
           path: output/batch/*
           if-no-files-found: error
           retention-days: 14
+      - name: Persist tracker history without starting another generation run
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tracking/07_tracker.csv
+          if git diff --cached --quiet; then
+            echo "Tracker already up to date."
+          else
+            git commit -m "Update Malayalam video tracking ledger"
+            git push origin HEAD:main
+          fi

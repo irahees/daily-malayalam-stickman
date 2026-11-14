@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 API = "https://api.buffer.com"
 PAGE_SIZE = 100
-WEEKLY_POSTS = 7
+BATCH_SIZE = 6
+IST = ZoneInfo("Asia/Kolkata")
+ACTIVE_STATUSES = {"draft", "needs_approval", "scheduled", "sending", "sent"}
+VERIFIED_STATUSES = {"scheduled", "sending", "sent"}
+TRACKER_COLUMNS = [
+    "batch_date_ist", "video", "platform", "title",
+    "scheduled_date_ist", "scheduled_time_ist", "status", "buffer_post_id",
+    "views", "watch_time_seconds", "average_watch_time_seconds", "reach",
+    "shares", "sends", "saves", "follows", "notes",
+]
 
 
 def graphql(key: str, query: str, variables: dict | None = None) -> dict:
@@ -35,18 +48,26 @@ def graphql(key: str, query: str, variables: dict | None = None) -> dict:
     return result["data"]
 
 
-def hashtags_for(story: dict) -> str:
-    text = " ".join((str(story.get("topic", "")), str(story.get("title", "")))).lower()
-    tags = ["#Malayalam", "#MalayalamShorts", "#Kerala"]
-    if any(word in text for word in ("ഫോൺ", "ബാറ്ററി", "ഇന്റർനെറ്റ്", "മൊബൈൽ", "ഡിജിറ്റൽ")):
-        tags.append("#MalayalamTech")
-    elif any(word in text for word in ("മഴ", "മണ്ണ്", "കടൽ", "വെള്ളം")):
-        tags.append("#KeralaNature")
-    elif any(word in text for word in ("കട", "പെട്രോൾ", "പണം", "രൂപ")):
-        tags.append("#KeralaLife")
-    else:
-        tags.append("#StickmanAnimation")
-    return " ".join(tags[:4])
+def next_slots(service: str, now: datetime, count: int) -> list[datetime]:
+    slots: list[datetime] = []
+    day = now.astimezone(IST).date()
+    while len(slots) < count:
+        weekend = day.weekday() >= 5
+        if service == "instagram":
+            hour, minute = (12, 0) if weekend else (19, 30)
+        elif service == "youtube":
+            hour, minute = (13, 0) if weekend else (18, 30)
+        else:
+            raise ValueError(f"Unsupported service: {service}")
+        slot = datetime(day.year, day.month, day.day, hour, minute, tzinfo=IST)
+        if slot > now.astimezone(IST):
+            slots.append(slot)
+        day += timedelta(days=1)
+    return slots
+
+
+def as_utc_iso(local_slot: datetime) -> str:
+    return local_slot.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def load_posts(key: str, organization_id: str, channel_id: str) -> list[dict]:
@@ -87,11 +108,7 @@ def load_posts(key: str, organization_id: str, channel_id: str) -> list[dict]:
 
 
 def verify_public_video_url(url: str) -> None:
-    request = urllib.request.Request(
-        url,
-        headers={"User-Agent": "DailyMalayalamStickman/1.0"},
-        method="HEAD",
-    )
+    request = urllib.request.Request(url, headers={"User-Agent": "DailyMalayalamStickman/1.0"}, method="HEAD")
     try:
         with urllib.request.urlopen(request, timeout=45) as response:
             if response.status != 200:
@@ -113,8 +130,7 @@ def asset_urls(post: dict) -> set[str]:
     }
 
 
-def create_post(key: str, channel: dict, video_url: str, title: str, caption: str,
-                service: str) -> dict:
+def create_post(key: str, channel: dict, video_url: str, title: str, caption: str, service: str, due_at: str) -> dict:
     if service == "instagram":
         metadata = {
             "instagram": {
@@ -123,7 +139,6 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
                 "isAiGenerated": True,
             }
         }
-        text = caption
     elif service == "youtube":
         metadata = {
             "youtube": {
@@ -134,12 +149,11 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
                 "isAiGenerated": True,
             }
         }
-        text = caption
     else:
         raise ValueError(f"Unsupported Buffer service: {service}")
 
     mutation = """
-      mutation QueueApprovedVideo($input: CreatePostInput!) {
+      mutation ScheduleApprovedVideo($input: CreatePostInput!) {
         createPost(input: $input) {
           ... on PostActionSuccess { post { id status dueAt channelId } }
           ... on MutationError { message }
@@ -147,10 +161,11 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
       }
     """
     data = graphql(key, mutation, {"input": {
-        "text": text,
+        "text": caption,
         "channelId": channel["id"],
         "schedulingType": "automatic",
-        "mode": "addToQueue",
+        "mode": "customScheduled",
+        "dueAt": due_at,
         "assets": [{
             "video": {
                 "url": video_url,
@@ -169,16 +184,60 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
     return post
 
 
+def update_tracker(outcomes: list[dict], tracker_path: Path) -> None:
+    tracker_path.parent.mkdir(parents=True, exist_ok=True)
+    if not tracker_path.is_file():
+        raise RuntimeError("Persistent tracking/07_tracker.csv is missing; refusing to publish without a ledger.")
+    with tracker_path.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        if reader.fieldnames != TRACKER_COLUMNS:
+            raise RuntimeError("Tracking ledger schema mismatch; refusing to overwrite existing history.")
+        rows = list(reader)
+
+    indexed = {
+        (row.get("batch_date_ist"), row.get("video"), row.get("platform")): row
+        for row in rows
+    }
+    for outcome in outcomes:
+        key = (outcome["batch_date_ist"], outcome["video"], outcome["service"])
+        row = indexed.get(key)
+        if row is None:
+            raise RuntimeError(f"Tracking row is missing for {key}; refusing to publish without a ledger entry.")
+        row["status"] = outcome["status"]
+        row["buffer_post_id"] = outcome["post_id"]
+        due_at = outcome.get("due_at")
+        if due_at:
+            due = datetime.fromisoformat(due_at.replace("Z", "+00:00")).astimezone(IST)
+            row["scheduled_date_ist"] = due.date().isoformat()
+            row["scheduled_time_ist"] = due.strftime("%H:%M")
+        row["notes"] = "Buffer post verified; scheduled status is not proof of publication."
+    with tracker_path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=TRACKER_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main() -> None:
     key = os.getenv("BUFFER_API_KEY", "").strip()
     base = os.getenv("BUFFER_VIDEO_BASE_URL", "").rstrip("/")
     folder = Path(os.getenv("VIDEO_ARTIFACT_DIR", "video-artifact"))
+    tracker_path = Path("tracking/07_tracker.csv")
     if not key or not base.startswith("https://"):
         raise RuntimeError("BUFFER_API_KEY or public HTTPS video URL is missing.")
 
     videos = sorted(folder.glob("*.mp4"))
-    if len(videos) != 7:
-        raise RuntimeError(f"Expected 7 approved videos; found {len(videos)}.")
+    if len(videos) != BATCH_SIZE:
+        raise RuntimeError(f"Expected {BATCH_SIZE} explicitly approved videos; found {len(videos)}.")
+
+    stories = {}
+    for video in videos:
+        story_path = video.with_suffix(".json")
+        if not story_path.is_file():
+            raise RuntimeError(f"Metadata file is missing for {video.name}.")
+        stories[video.name] = json.loads(story_path.read_text(encoding="utf-8"))
+    batch_dates = {str(story.get("batch_date_ist", "")) for story in stories.values()}
+    if len(batch_dates) != 1 or not next(iter(batch_dates)):
+        raise RuntimeError("The approved batch metadata does not contain one consistent IST batch date.")
 
     account = graphql(key, "query { account { organizations { id name } } }").get("account") or {}
     organizations = account.get("organizations") or []
@@ -186,10 +245,7 @@ def main() -> None:
     if selected_id:
         organizations = [org for org in organizations if org.get("id") == selected_id]
     if len(organizations) != 1:
-        raise RuntimeError(
-            f"Expected exactly one selected Buffer organization; found {len(organizations)}. "
-            "Set BUFFER_ORGANIZATION_ID if the account has multiple organizations."
-        )
+        raise RuntimeError(f"Expected exactly one selected Buffer organization; found {len(organizations)}.")
     organization = organizations[0]
 
     channel_data = graphql(
@@ -220,61 +276,97 @@ def main() -> None:
         service: load_posts(key, organization["id"], channel["id"])
         for service, channel in selected.items()
     }
-    in_progress = {"draft", "needs_approval", "scheduled", "sending", "sent"}
-    scheduled_urls = {
+    existing_by_url = {
         service: {
-            url
+            url: post
             for post in existing[service]
-            if str(post.get("status", "")).lower() in in_progress
+            if str(post.get("status", "")).lower() in ACTIVE_STATUSES
             for url in asset_urls(post)
         }
         for service in selected
     }
 
-    queued = []
-    skipped = []
-    for video in videos[:WEEKLY_POSTS]:
-        story_path = video.with_suffix(".json")
-        if not story_path.is_file():
-            raise RuntimeError(f"Metadata file is missing for {video.name}.")
-        story = json.loads(story_path.read_text(encoding="utf-8"))
+    now = datetime.now(IST)
+    slots = {
+        service: next_slots(service, now, len(videos))
+        for service in selected
+    }
+    outcomes: list[dict] = []
+    newly_created: list[dict] = []
+    already_present: list[dict] = []
+
+    for index, video in enumerate(videos):
+        story = stories[video.name]
         title = str(story.get("title") or "Malayalam Short").strip()[:100]
-        hook = str(story.get("hook") or title).strip()
-        if len(hook) > 124:
-            hook = hook[:121].rstrip() + "…"
-        scenes = story.get("scenes") or []
-        closing = str(scenes[-1]).strip() if scenes else "നിങ്ങളുടെ അഭിപ്രായം കമന്റിൽ പറയൂ."
-        tags = hashtags_for(story)
+        tags = " ".join(str(tag) for tag in story.get("hashtags") or [])
         video_url = f"{base}/{video.name}"
         verify_public_video_url(video_url)
-        instagram_caption = f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Reels"
-        youtube_description = f"{hook}\n\n{title}\n\n{closing}\n\n{tags} #Shorts"
 
         for service in ("instagram", "youtube"):
-            if video_url in scheduled_urls[service]:
-                skipped.append(f"{service}: {video.name} already exists in Buffer")
-                print(f"SKIP {service} {video.name}: existing Buffer post uses this exact video URL")
+            due_at = as_utc_iso(slots[service][index])
+            if video_url in existing_by_url[service]:
+                post = existing_by_url[service][video_url]
+                outcome = {
+                    "service": service,
+                    "video": video.name,
+                    "batch_date_ist": story["batch_date_ist"],
+                    "post_id": post["id"],
+                    "status": str(post.get("status", "")).lower(),
+                    "due_at": post.get("dueAt") or due_at,
+                }
+                already_present.append(outcome)
+                outcomes.append(outcome)
+                print(f"SKIP {service} {video.name}: exact video URL already exists in Buffer as {outcome['status']}")
                 continue
-            caption = instagram_caption if service == "instagram" else youtube_description
-            post = create_post(key, selected[service], video_url, title, caption, service)
-            queued.append({
+
+            if service == "instagram":
+                caption = str(story.get("instagram_caption") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Reels")
+            else:
+                caption = str(story.get("youtube_description") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Shorts")
+            post = create_post(key, selected[service], video_url, title, caption, service, due_at)
+            outcome = {
                 "service": service,
                 "video": video.name,
+                "batch_date_ist": story["batch_date_ist"],
                 "post_id": post["id"],
-                "status": post.get("status"),
-                "due_at": post.get("dueAt"),
-            })
-            scheduled_urls[service].add(video_url)
-            print(
-                f"QUEUED {service} {video.name} | {post['id']} | "
-                f"{post.get('status')} | {post.get('dueAt')}"
-            )
+                "status": str(post.get("status", "")).lower(),
+                "due_at": post.get("dueAt") or due_at,
+            }
+            newly_created.append(outcome)
+            outcomes.append(outcome)
+            print(f"CREATED {service} {video.name} | {post['id']} | {outcome['status']} | {outcome['due_at']}")
 
-    if not queued and not skipped:
-        raise RuntimeError("No Buffer posts were created or skipped; inspect the batch input.")
+    verified_posts: dict[str, dict[str, dict]] = {}
+    for attempt in range(3):
+        verified_posts = {
+            service: {post["id"]: post for post in load_posts(key, organization["id"], channel["id"])}
+            for service, channel in selected.items()
+        }
+        pending = [
+            outcome for outcome in outcomes
+            if str((verified_posts[outcome["service"]].get(outcome["post_id"]) or {}).get("status", "")).lower()
+            not in VERIFIED_STATUSES
+        ]
+        if not pending:
+            break
+        if attempt < 2:
+            time.sleep(2)
+
+    for outcome in outcomes:
+        post = verified_posts[outcome["service"]].get(outcome["post_id"])
+        if not post:
+            raise RuntimeError(f"Buffer verification failed: post {outcome['post_id']} was not found after creation.")
+        status = str(post.get("status", "")).lower()
+        if status not in VERIFIED_STATUSES:
+            raise RuntimeError(f"Buffer post {outcome['post_id']} exists but is not scheduled/sent; current status: {status}.")
+        outcome["status"] = status
+        outcome["due_at"] = post.get("dueAt") or outcome["due_at"]
+        print(f"VERIFIED {outcome['service']} {outcome['video']} | {outcome['post_id']} | {status} | {outcome['due_at']}")
+
+    update_tracker(outcomes, tracker_path)
     print(
-        f"Buffer batch complete: {len(queued)} new posts queued across both channels; "
-        f"{len(skipped)} duplicates safely skipped."
+        f"Buffer verification complete: {len(newly_created)} new posts scheduled and verified; "
+        f"{len(already_present)} exact-URL duplicates safely skipped. Scheduled is not published."
     )
 
 

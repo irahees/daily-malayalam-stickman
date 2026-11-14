@@ -6,8 +6,10 @@ on:
       - "src/cancel_unapproved_posts.py"
       - ".github/workflows/cancel-unapproved-buffer-posts.yml"
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   cancel:
     runs-on: ubuntu-24.04
@@ -19,5 +21,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Cancel only the seven unapproved posts from run 43440353185
+      - name: Cancel the 14 exact unapproved posts from run 43472096446
         run: python src/cancel_unapproved_posts.py

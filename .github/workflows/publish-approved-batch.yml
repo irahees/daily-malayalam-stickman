@@ -1,21 +1,31 @@
-name: Auto-publish generated Malayalam Reels batch
-
+name: Publish approved Malayalam video batch
 on:
-  workflow_run:
-    workflows: ["Weekly Malayalam Bulk Instagram Reels"]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful Daily Malayalam Video Batch run ID to use"
+        required: true
+        type: string
+      approved:
+        description: "Set to true only after personally reviewing and approving this exact batch"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
 
 permissions:
   contents: write
   actions: read
 
 concurrency:
-  group: auto-publish-malayalam-batch
+  group: publish-approved-malayalam-batch
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: ${{ inputs.approved == 'true' && inputs.source_run_id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -24,30 +34,37 @@ jobs:
       VIDEO_ARTIFACT_DIR: video-artifact
     steps:
       - uses: actions/checkout@v4
-      - name: Verify Buffer connection secret
-        shell: bash
-        run: |
-          if [ -z "$BUFFER_API_KEY" ]; then
-            echo "::error::BUFFER_API_KEY is missing from repository Actions secrets."
-            exit 1
-          fi
-      - name: Download completed seven-video batch
-        uses: actions/download-artifact@v4
-        with:
-          name: malayalam-weekly-reels
-          path: video-artifact
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify all seven videos and metadata
+      - name: Verify explicit approval and source run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find video-artifact -maxdepth 1 -name '*.mp4' | wc -l)" -eq 7
+          test "${{ inputs.approved }}" = "true"
+          source_run_id="${{ inputs.source_run_id }}"
+          test -n "$source_run_id"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id" \
+            --jq 'select(.conclusion == "success" and .path == ".github/workflows/weekly-bulk-reels.yml") | .id' \
+            | grep -Fx "$source_run_id"
+          test -n "$BUFFER_API_KEY"
+      - name: Download the exact approved six-video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-daily-reels
+          path: video-artifact
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify all six videos and their metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find video-artifact -maxdepth 1 -name '*.mp4' | wc -l)" -eq 6
+          test "$(find video-artifact -maxdepth 1 -name '*.json' | wc -l)" -eq 6
+          test -s video-artifact/07_tracker.csv
           for f in video-artifact/*.mp4; do
             test -s "$f"
             test -s "${f%.mp4}.json"
           done
-          test -s video-artifact/07_tracker.csv
       - name: Install FFmpeg
         run: |
           set -euo pipefail
@@ -64,15 +81,31 @@ jobs:
             cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
             test "$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n")" = "30/1"
           done
-      - name: Host videos as public GitHub Release assets
+      - name: Host approved videos as public GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          source_run_id="${{ github.event.workflow_run.id }}"
-          tag="auto-published-reels-$source_run_id"
-          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Malayalam Reels $source_run_id" --notes "Automatically approved batch for the connected YouTube and Instagram channels."
+          source_run_id="${{ inputs.source_run_id }}"
+          tag="approved-reels-$source_run_id"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$RUNNER_TEMP"/media/*.mp4 --clobber
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $source_run_id" --notes "This batch was explicitly approved by the channel owner before scheduling."
+          fi
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Queue all seven videos on Instagram and YouTube through Buffer
+      - name: Schedule only approved videos at the selected IST test slots
         run: python src/publish_batch_buffer.py
+      - name: Persist verified Buffer schedule in the tracking ledger
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tracking/07_tracker.csv
+          if git diff --cached --quiet; then
+            echo "No tracker changes to persist."
+          else
+            git commit -m "Record approved Buffer publishing schedule"
+            git push origin HEAD:main
+          fi
