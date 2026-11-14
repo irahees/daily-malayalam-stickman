@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/weekly-bulk-reels.yml"
   schedule:
-    - cron: "30 2 * * *" # Daily 08:00 IST; generation and storage only
+    - cron: "30 2 * * *" # Daily 08:00 IST; generation and storage only; publisher runs after a successful batch
   workflow_dispatch:
 
 permissions:
