@@ -1,19 +1,9 @@
-name: Publish approved Malayalam video batch
+name: Publish Malayalam batch automatically
 on:
-  workflow_dispatch:
-    inputs:
-      source_run_id:
-        description: "Successful Daily Malayalam Video Batch run ID to use"
-        required: true
-        type: string
-      approved:
-        description: "Set to true only after personally reviewing and approving this exact batch"
-        required: true
-        type: choice
-        options:
-          - "false"
-          - "true"
-        default: "false"
+  workflow_run:
+    workflows: ["Daily Malayalam Video Batch"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -25,34 +15,33 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ inputs.approved == 'true' && inputs.source_run_id != '' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
       VIDEO_ARTIFACT_DIR: video-artifact
+      SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
       - uses: actions/checkout@v4
-      - name: Verify explicit approval and source run
+      - name: Verify successful generation run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.approved }}" = "true"
-          source_run_id="${{ inputs.source_run_id }}"
-          test -n "$source_run_id"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id" \
+          test -n "$SOURCE_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
             --jq 'select(.conclusion == "success" and .path == ".github/workflows/weekly-bulk-reels.yml") | .id' \
-            | grep -Fx "$source_run_id"
+            | grep -Fx "$SOURCE_RUN_ID"
           test -n "$BUFFER_API_KEY"
-      - name: Download the exact approved six-video artifact
+      - name: Download the generated six-video batch
         uses: actions/download-artifact@v4
         with:
           name: malayalam-daily-reels
           path: video-artifact
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify all six videos and their metadata
         shell: bash
@@ -81,21 +70,16 @@ jobs:
             cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
             test "$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n")" = "30/1"
           done
-      - name: Host approved videos as public GitHub Release assets
+      - name: Host generated videos as public GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          source_run_id="${{ inputs.source_run_id }}"
-          tag="approved-reels-$source_run_id"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$RUNNER_TEMP"/media/*.mp4 --clobber
-          else
-            gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $source_run_id" --notes "This batch was explicitly approved by the channel owner before scheduling."
-          fi
+          tag="daily-reels-$SOURCE_RUN_ID"
+          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Daily Malayalam Reels $SOURCE_RUN_ID" --notes "Generated Malayalam video batch."
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Schedule only approved videos at the selected IST test slots
+      - name: Schedule videos on Instagram and YouTube
         run: python src/publish_batch_buffer.py
       - name: Persist verified Buffer schedule in the tracking ledger
         run: |
@@ -106,6 +90,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No tracker changes to persist."
           else
-            git commit -m "Record approved Buffer publishing schedule"
+            git commit -m "Record automatic Buffer publishing schedule"
             git push origin HEAD:main
           fi
