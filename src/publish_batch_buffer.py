@@ -48,7 +48,20 @@ def graphql(key: str, query: str, variables: dict | None = None) -> dict:
     return result["data"]
 
 
-def next_slots(service: str, now: datetime, count: int) -> list[datetime]:
+def next_slots(service: str, now: datetime, count: int, existing_posts: list[dict]) -> list[datetime]:
+    """Choose future IST slots while avoiding dates already occupied in Buffer."""
+    occupied: set[datetime] = set()
+    for post in existing_posts:
+        if str(post.get("status", "")).lower() not in ACTIVE_STATUSES:
+            continue
+        due_at = post.get("dueAt")
+        if not due_at:
+            continue
+        try:
+            occupied.add(datetime.fromisoformat(str(due_at).replace("Z", "+00:00")).astimezone(IST))
+        except ValueError:
+            raise RuntimeError(f"Buffer returned an invalid dueAt value: {due_at!r}")
+
     slots: list[datetime] = []
     day = now.astimezone(IST).date()
     while len(slots) < count:
@@ -60,7 +73,7 @@ def next_slots(service: str, now: datetime, count: int) -> list[datetime]:
         else:
             raise ValueError(f"Unsupported service: {service}")
         slot = datetime(day.year, day.month, day.day, hour, minute, tzinfo=IST)
-        if slot > now.astimezone(IST):
+        if slot > now.astimezone(IST) and slot not in occupied:
             slots.append(slot)
         day += timedelta(days=1)
     return slots
@@ -288,7 +301,7 @@ def main() -> None:
 
     now = datetime.now(IST)
     slots = {
-        service: next_slots(service, now, len(videos))
+        service: next_slots(service, now, len(videos), existing[service])
         for service in selected
     }
     outcomes: list[dict] = []
