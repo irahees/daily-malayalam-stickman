@@ -1,5 +1,11 @@
 name: Full 3D Malayalam Example Video
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "requirements.txt"
+      - ".github/workflows/full-3d-example.yml"
   workflow_dispatch:
     inputs:
       story_index:
@@ -8,6 +14,9 @@ on:
         default: "1"
 permissions:
   contents: read
+concurrency:
+  group: full-3d-render-main
+  cancel-in-progress: false
 jobs:
   render-one-full-3d-video:
     runs-on: ubuntu-24.04
