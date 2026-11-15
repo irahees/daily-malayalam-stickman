@@ -89,10 +89,10 @@ jobs:
           set -euo pipefail
           tag="approved-daily-reels-$SOURCE_RUN_ID"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "::error::Release $tag already exists; refusing to create duplicate posts."
-            exit 1
+            echo "Reusing existing release assets for the same reviewed batch."
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $SOURCE_RUN_ID" --notes "Reviewed and approved Malayalam video batch."
           fi
-          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $SOURCE_RUN_ID" --notes "Reviewed and approved Malayalam video batch."
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
       - name: Schedule only the four weekly mirrored slots
         run: python src/publish_batch_buffer.py
