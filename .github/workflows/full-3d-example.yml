@@ -1,0 +1,54 @@
+name: Full 3D Malayalam Example Video
+on:
+  workflow_dispatch:
+    inputs:
+      story_index:
+        description: "Story number from the offline story bank (1–42)"
+        required: true
+        default: "1"
+permissions:
+  contents: read
+jobs:
+  render-one-full-3d-video:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender, FFmpeg and Malayalam fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender ffmpeg fonts-noto-core fonts-noto-extra libegl1 libgl1 libxrender1 libxext6 libxi6 libxfixes3 python3-pil python3-pil.imagetk
+          blender --version
+          ffmpeg -version | head -n 1
+      - name: Select one example story
+        env:
+          STORY_INDEX: ${{ inputs.story_index }}
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "src")
+          from create_brief import STORIES
+          n=int(os.environ["STORY_INDEX"])
+          if n < 1 or n > len(STORIES): raise SystemExit("story_index must be between 1 and "+str(len(STORIES)))
+          Path("output/story.json").write_text(json.dumps(STORIES[n-1], ensure_ascii=False, indent=2), encoding="utf-8")
+          print("Selected:", STORIES[n-1]["title"])
+          PY
+      - name: Render full 3D Malayalam video with narration
+        env:
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+          SARVAM_TTS_SPEAKER: shubh
+        run: |
+          set -euo pipefail
+          python3 src/create_video_3d.py
+          test -s output/daily_malayalam_stickman.mp4
+          ffprobe -v error -show_entries stream=codec_type,width,height -show_entries format=duration -of json output/daily_malayalam_stickman.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-3d-malayalam-example
+          path: output/daily_malayalam_stickman.mp4
+          if-no-files-found: error
+          retention-days: 7
