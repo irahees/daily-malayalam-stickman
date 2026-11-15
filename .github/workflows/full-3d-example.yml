@@ -14,19 +14,27 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Install Blender, FFmpeg and Malayalam fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg fonts-noto-core fonts-noto-extra libegl1 libgl1 libxrender1 libxext6 libxi6 libxfixes3 python3-pil python3-pil.imagetk
+          sudo apt-get install -y blender ffmpeg fonts-noto-core fonts-noto-extra libraqm-dev libharfbuzz-dev libfribidi-dev libjpeg-dev pkg-config libegl1 libgl1 libxrender1 libxext6 libxi6 libxfixes3
           blender --version
           ffmpeg -version | head -n 1
+      - name: Install Python packages with Malayalam shaping support
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-binary=Pillow -r requirements.txt
+          python -c "from PIL import features; assert features.check('raqm'), 'Pillow RAQM support missing'; print('RAQM shaping enabled')"
       - name: Select one example story
         env:
           STORY_INDEX: ${{ inputs.story_index }}
         run: |
           set -euo pipefail
           mkdir -p output
-          python3 - <<'PY'
+          python - <<'PY'
           import json, os
           from pathlib import Path
           import sys
@@ -43,7 +51,7 @@ jobs:
           SARVAM_TTS_SPEAKER: shubh
         run: |
           set -euo pipefail
-          python3 src/create_video_3d.py
+          python src/create_video_3d.py
           test -s output/daily_malayalam_stickman.mp4
           ffprobe -v error -show_entries stream=codec_type,width,height -show_entries format=duration -of json output/daily_malayalam_stickman.mp4
       - uses: actions/upload-artifact@v4
