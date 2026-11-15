@@ -94,9 +94,11 @@ def build_fuel(m, variant=0):
     cube("road",(0,-7,-.02),(22,5,.12),m["road"])
     cube("shop",(0,5,2.0),(9,2,4),m["concrete"],.12)
     cube("shop fascia",(0,3.93,3.35),(8.8,.15,.62),m["red"],.04)
+    text_label("Fuel station channel sign","SIMULI MALAYALAM",(0,3.82,3.30),.34,m["yellow"])
     cube("glass frontage",(0,3.88,1.9),(7.6,.1,1.9),m["glass"],.03)
     cube("canopy",(0,.1,4.65),(12,5,.35),m["white"],.12)
     cube("canopy trim",(0,-2.42,4.47),(12,.18,.3),m["red"],.04)
+    text_label("Fuel canopy sign","PETROL  •  DIESEL",(2.1,-2.53,4.49),.28,m["dark"])
     for x in (-4.8,4.8): cube("canopy pillar",(x,-1.1,2.2),(.22,.22,4.3),m["white"])
     for x in (-3,0,3):
         cube("fuel dispenser",(x,-1.1,1.18),(.85,.7,2.15),m["white"],.1)
@@ -116,7 +118,7 @@ def build_shop(m, variant):
         cube("side plaster wall",(x,1,2.65),(.28,8,5.3),m["white"])
     cube("rear plaster wall",(0,4.8,2.65),(12,.28,5.3),m["white"])
     cube("shop fascia",(0,4.55,4.65),(11.7,.24,.95),m["green"],.06)
-    text_label("Malayalam grocery shop name","കേരള സ്റ്റോർ",(0,4.405,4.48),.56,m["yellow"])
+    text_label("Channel branded grocery shop name","SIMULI MALAYALAM",(0,4.405,4.48),.43,m["yellow"])
     # Open entrance and glass display windows.
     for x in (-4.8,4.8):
         cube("front window frame",(x,-3.8,2.35),(2.0,.16,3.25),m["wood"],.04)
