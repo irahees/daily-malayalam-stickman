@@ -36,7 +36,7 @@ def main():
     if len(raw_frames)<expected-3: raise RuntimeError(f"3D render incomplete: {len(raw_frames)} frames, expected about {expected}.")
     # Malayalam captions are shaped by Pillow RAQM/HarfBuzz, not Blender's basic text renderer.
     from create_video import get_font, draw_text, wrap_text
-    title_font=get_font(24,True); body_font=get_font(25,True)
+    title_font=get_font(21,True); body_font=get_font(25,True)
     cumulative=[]; cursor=0.0
     for d in scene_durations:
         cursor+=d; cumulative.append(cursor)
@@ -46,7 +46,11 @@ def main():
         im=Image.open(path).convert("RGB")
         draw=ImageDraw.Draw(im)
         draw.rounded_rectangle((18,18,522,94),radius=16,fill=(17,27,43),outline=(246,190,87),width=2)
-        draw_text(draw,(32,39),title,font=title_font,fill=(255,255,255),stroke_width=1,stroke_fill=(17,27,43))
+        title_rows=wrap_text(draw,title,title_font,455)
+        title_y=30
+        for title_row in title_rows[:2]:
+            draw_text(draw,(32,title_y),title_row,font=title_font,fill=(255,255,255),stroke_width=1,stroke_fill=(17,27,43))
+            title_y+=27
         draw.rounded_rectangle((18,790,522,940),radius=18,fill=(15,24,37),outline=(255,202,82),width=3)
         rows=wrap_text(draw,scenes[scene_index],body_font,450)
         y=815
