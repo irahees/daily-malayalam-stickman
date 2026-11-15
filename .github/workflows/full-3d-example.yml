@@ -39,7 +39,7 @@ jobs:
           python -c "from PIL import features; assert features.check('raqm'), 'Pillow RAQM support missing'; print('RAQM shaping enabled')"
       - name: Select one example story
         env:
-          STORY_INDEX: ${{ inputs.story_index }}
+          STORY_INDEX: ${{ inputs.story_index || '1' }}
         run: |
           set -euo pipefail
           mkdir -p output
