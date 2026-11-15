@@ -6,23 +6,17 @@ import sys
 import urllib.error
 import urllib.request
 
-# Exact unapproved posts created by auto-publish run 43472096446.
-# These IDs are intentionally scoped; do not broaden this list.
+# Exact posts created without approval by publisher run 43588025568.
+# Only these eight IDs are in scope; previously approved posts are untouched.
 POST_IDS = [
-    "6af7478538f9934c19ff8d75",
-    "6af7478538f9934c19ff8da8",
-    "6af7478638f9934c19ff8e0b",
-    "6af7478760bde15261f58afb",
-    "6af7478822cd418aa2de310a",
-    "6af747884d5a2b44bea079ca",
-    "6af747894d5a2b44bea07a23",
-    "6af7478938f9934c19ff8f71",
-    "6af7478a22cd418aa2de3235",
-    "6af7478b38f9934c19ff920d",
-    "6af7478c0234d2352e23cf0f",
-    "6af7478c60bde15261f58c85",
-    "6af7478d60bde15261f58d0c",
-    "6af7478e22cd418aa2de34c6",
+    "6af83fef81e1228421ff62e0",
+    "6af83ff0d16af15d4d0d3391",
+    "6af83ff0d16af15d4d0d33de",
+    "6af83ff1d8bd2962e42491fc",
+    "6af83ff2d8bd2962e4249226",
+    "6af83ff2d8bd2962e4249254",
+    "6af83ff3d8bd2962e4249282",
+    "6af83ff4bb36d0090905a368",
 ]
 
 
