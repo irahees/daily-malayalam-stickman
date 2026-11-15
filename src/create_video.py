@@ -90,7 +90,7 @@ def get_font(size: int, bold: bool = False):
 def draw_text(draw: ImageDraw.ImageDraw, *args, **kwargs):
     """Always ask RAQM/HarfBuzz to shape text with Malayalam language rules."""
     kwargs.setdefault("language", "ml")
-    return draw_text(draw, *args, **kwargs)
+    return draw.text(*args, **kwargs)
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
