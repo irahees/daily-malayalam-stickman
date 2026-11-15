@@ -44,7 +44,10 @@ def find_font(bold: bool = False) -> str:
     """Resolve a real Malayalam-capable font; never silently fall back to Pillow's bitmap font."""
     candidates = []
     if bold:
-        candidates.append("/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf")
+        candidates.extend([
+            "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Bold.woff2",
+        ])
     candidates.extend([
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam[wght].ttf",
@@ -56,7 +59,7 @@ def find_font(bold: bool = False) -> str:
     # Fontconfig knows the installed font's actual filename on Ubuntu runners.
     try:
         result = subprocess.run(
-            ["fc-match", "-f", "%{file}", "Noto Sans Malayalam:lang=ml"],
+            ["fc-match", "-f", "%{file}", ("Noto Sans Malayalam:style=Bold:lang=ml" if bold else "Noto Sans Malayalam:lang=ml")],
             check=True, capture_output=True, text=True, timeout=10
         )
         candidate = result.stdout.strip()
@@ -84,12 +87,18 @@ def get_font(size: int, bold: bool = False):
         raise RuntimeError(f"Unable to shape Malayalam text with font {path}: {error}") from error
 
 
+def draw_text(draw: ImageDraw.ImageDraw, *args, **kwargs):
+    """Always ask RAQM/HarfBuzz to shape text with Malayalam language rules."""
+    kwargs.setdefault("language", "ml")
+    return draw.text(*args, **kwargs)
+
+
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
     words = text.split()
     rows, current = [], ""
     for word in words:
         test = f"{current} {word}".strip()
-        if draw.textbbox((0, 0), test, font=font)[2] <= max_width:
+        if draw.textbbox((0, 0), test, font=font, language="ml")[2] <= max_width:
             current = test
         else:
             if current:
