@@ -60,8 +60,10 @@ def main():
         im.save(FINAL_FRAMES/f"frame_{i+1:06d}.jpg",quality=91,subsampling=0,optimize=True)
         if i%150==0: print(f"Captioned 3D frames: {i+1}/{len(raw_frames)}")
     output=OUT/"daily_malayalam_stickman.mp4"
+    normalized_audio=OUT/"narration_normalized.wav"
+    subprocess.run(["ffmpeg","-y","-i",str(audio),"-af","loudnorm=I=-16:TP=-1.5:LRA=11","-ar","48000","-c:a","pcm_s16le",str(normalized_audio)],check=True)
     subprocess.run([
-        "ffmpeg","-y","-framerate",str(FPS),"-i",str(FINAL_FRAMES/"frame_%06d.jpg"),"-i",str(audio),
+        "ffmpeg","-y","-framerate",str(FPS),"-i",str(FINAL_FRAMES/"frame_%06d.jpg"),"-i",str(normalized_audio),
         "-map","0:v:0","-map","1:a:0","-vf","scale=1080:1920:flags=lanczos,setsar=1",
         "-c:v","libx264","-preset","medium","-crf","20","-r","30","-fps_mode","cfr",
         "-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-shortest","-movflags","+faststart",str(output)
