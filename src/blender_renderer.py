@@ -16,7 +16,6 @@ def cube(name,loc,scale,material,bevel=0):
     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True); o.data.materials.append(material)
     if bevel:
         b=o.modifiers.new("soft edges","BEVEL"); b.width=bevel; b.segments=3
-        o.modifiers.new("weighted normals","WEIGHTED_NORMAL")
     return o
 def sphere(name,loc,scale,material):
     bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=16,location=loc); o=bpy.context.object
@@ -24,7 +23,7 @@ def sphere(name,loc,scale,material):
 def cylinder(name,loc,radius,depth,material,rotation=(0,0,0)):
     bpy.ops.mesh.primitive_cylinder_add(vertices=24,radius=radius,depth=depth,location=loc,rotation=rotation)
     o=bpy.context.object; o.name=name; o.data.materials.append(material); b=o.modifiers.new("edge bevel","BEVEL"); b.width=.025; b.segments=2
-    o.modifiers.new("weighted normals","WEIGHTED_NORMAL"); return o
+    return o
 def aim(obj,point): obj.rotation_euler=(Vector(point)-obj.location).to_track_quat("-Z","Y").to_euler()
 sky=mat("sky blue",(.30,.58,.76)); grass=mat("Kerala greenery",(.12,.32,.16)); road=mat("asphalt",(.055,.07,.085))
 concrete=mat("warm concrete",(.72,.68,.56)); red=mat("station red",(.72,.055,.045)); white=mat("paint white",(.88,.88,.80))
@@ -78,7 +77,12 @@ bpy.ops.object.light_add(type="AREA",location=(-7,-10,13)); key=bpy.context.obje
 bpy.ops.object.light_add(type="AREA",location=(8,2,8)); fill=bpy.context.object; fill.data.energy=900; fill.data.size=7; aim(fill,(0,0,2))
 world=bpy.data.worlds.new("soft blue world") if not bpy.data.worlds else bpy.data.worlds[0]
 scene.world=world; world.use_nodes=True; world.node_tree.nodes["Background"].inputs[0].default_value=(.12,.18,.25,1); world.node_tree.nodes["Background"].inputs[1].default_value=.7
-scene.render.engine="BLENDER_EEVEE_NEXT"; scene.eevee.taa_render_samples=16
+# Blender 4.0 (Ubuntu apt) uses BLENDER_EEVEE; 4.2+ uses EEVEE Next.
+if bpy.app.version >= (4, 2, 0):
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+else:
+    scene.render.engine = "BLENDER_EEVEE"
+scene.eevee.taa_render_samples = 16
 scene.render.resolution_x=540; scene.render.resolution_y=960; scene.render.resolution_percentage=100; scene.render.fps=30
 scene.frame_start=1; scene.frame_end=90; scene.render.image_settings.file_format="PNG"; scene.render.filepath="//blender_frames/frame_"
 scene.view_settings.view_transform="AgX"; scene.frame_set(1)
