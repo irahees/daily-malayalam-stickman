@@ -37,6 +37,28 @@ def cylinder(name, loc, radius, depth, mat, rot=(0,0,0)):
     bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=radius, depth=depth, location=loc, rotation=rot)
     o=bpy.context.object; o.name=name; o.data.materials.append(mat); return o
 
+
+def text_label(name, body, loc, size, mat, rotation=(math.pi/2,0,0)):
+    curve=bpy.data.curves.new(name,"FONT"); curve.body=body; curve.size=size; curve.extrude=0.003
+    # Prefer a Malayalam-capable Noto font when installed.
+    import glob
+    candidates=glob.glob("/usr/share/fonts/**/*NotoSansMalayalam*Regular*.ttf",recursive=True)
+    if not candidates: candidates=glob.glob("/usr/share/fonts/**/*Malayalam*.ttf",recursive=True)
+    if candidates:
+        try: curve.font=bpy.data.fonts.load(candidates[0])
+        except Exception: pass
+    obj=bpy.data.objects.new(name,curve); bpy.context.collection.objects.link(obj)
+    obj.location=loc; obj.rotation_euler=rotation; obj.data.materials.append(mat)
+    return obj
+
+def package_box(name, loc, size, color, label, mats):
+    box=cube(name,loc,size,color,.045)
+    # A clean front-facing printed label makes the product read as a real shop item.
+    x,y,z=loc; sx,sy,sz=size
+    cube(name+" label",(x,y-sy/2-.008,z),(sx*.72,.018,sz*.38),mats["white"],.012)
+    text_label(name+" print",label,(x-sx*.30,y-sy/2-.021,z-sz*.08),min(.13,sx*.12),mats["dark"])
+    return box
+
 def aim(o, point):
     o.rotation_euler=(Vector(point)-o.location).to_track_quat("-Z","Y").to_euler()
 
@@ -87,21 +109,54 @@ def build_fuel(m, variant=0):
     return [car]
 
 def build_shop(m, variant):
-    cube("shop floor",(0,0,-.3),(18,16,.5),m["concrete"])
-    cube("back wall",(0,4,2.6),(12,.35,5.2),m["white"])
-    cube("shop sign",(0,3.75,4.45),(7,.18,.75),m["red"],.08)
-    for x in (-4.5,-1.5,1.5,4.5):
-        cube("shelf upright",(x,2.6,2.1),(.12,.45,3.4),m["wood"])
-    for z in (1.1,2.2,3.25):
-        cube("shelf",(0,2.55,z),(9.5,.65,.12),m["wood"])
-        for x in (-3.8,-2.4,-1,0.4,1.8,3.2):
-            cube("grocery packet",(x,2.25,z+.35),(.48,.42,.62),[m["orange"],m["green"],m["yellow"],m["blue"]][int(abs(x*2+z))%4],.06)
-    if variant % 3 == 1:
-        for x in (-3,0,3): cube("warehouse carton",(x,-1,0.55),(1.4,1.1,1.1),m["wood"],.06)
-    elif variant % 3 == 2:
-        cube("delivery van",(0,-3,.75),(3.4,1.5,1.3),m["blue"],.16)
-    else:
-        cube("shop counter",(0,-1.5,.65),(5,.9,1.3),m["wood"],.08)
+    # A recognizable small Kerala neighbourhood grocery: tiled floor, plaster walls,
+    # painted fascia, glass frontage, stocked racks and a working checkout.
+    cube("shop tiled floor",(0,0,-.32),(18,16,.5),m["concrete"])
+    for x in (-6,6):
+        cube("side plaster wall",(x,1,2.65),(.28,8,5.3),m["white"])
+    cube("rear plaster wall",(0,4.8,2.65),(12,.28,5.3),m["white"])
+    cube("shop fascia",(0,4.55,4.65),(11.7,.24,.95),m["green"],.06)
+    text_label("Malayalam grocery shop name","കേരള സ്റ്റോർ",(0,4.405,4.48),.56,m["yellow"])
+    # Open entrance and glass display windows.
+    for x in (-4.8,4.8):
+        cube("front window frame",(x,-3.8,2.35),(2.0,.16,3.25),m["wood"],.04)
+        cube("front window glass",(x,-3.90,2.35),(1.78,.035,3.0),m["glass"],.025)
+    cube("door frame",(0,-3.82,1.65),(1.7,.18,3.3),m["wood"],.04)
+    cube("glass door",(0,-3.93,1.65),(1.48,.035,3.08),m["glass"],.025)
+    # Three stocked grocery aisles with detailed shelves and assorted products.
+    for x in (-4.0,0,4.0):
+        for z in (1.0,2.05,3.1):
+            cube("wood grocery shelf",(x,2.35,z),(3.25,.75,.13),m["wood"],.035)
+            for k in range(6):
+                px=x-1.30+k*.52
+                colors=[m["yellow"],m["orange"],m["green"],m["blue"],m["red"],m["white"]]
+                package_box("branded grocery packet",(px,1.98,z+.38),(.36,.28,.68),colors[k],["RICE","TEA","DAL","OIL","SALT","SOAP"][k],m)
+    # Rice sacks, dhal sacks, oil bottles and crates of fresh produce.
+    for x in (-4.2,-2.9,2.9,4.2):
+        sack=sphere("stitched rice sack",(x,-1.8,.62),(.48,.42,.66),m["white"])
+        sack.scale.z=1.0
+        text_label("rice sack label","അരി",(x-.16,-2.18,.65),.20,m["red"])
+    for x in (-4.6,-3.45,3.45,4.6):
+        cylinder("cooking oil bottle",(x,-.55,.72),.18,1.0,m["yellow"])
+        cylinder("oil bottle cap",(x,-.55,1.25),.09,.12,m["red"])
+    for x in (-4.3,-2.7,2.7,4.3):
+        cube("vegetable crate",(x,-2.9,.28),(1.35,.8,.55),m["wood"],.06)
+        for j in range(5):
+            xx=x-.48+j*.24
+            sphere("fresh tomato",(xx,-3.0,.65),(.16,.16,.15),m["red"])
+            sphere("green vegetable",(xx,-2.72,.65),(.14,.14,.16),m["green"])
+    # Checkout counter, digital scale and hanging tube lights.
+    cube("checkout counter",(0,-1.55,.72),(3.8,1.0,1.4),m["wood"],.08)
+    cube("counter glass top",(0,-1.55,1.45),(3.85,1.04,.08),m["glass"],.025)
+    cube("digital weighing scale",(0,-1.5,1.62),(.75,.48,.22),m["dark"],.04)
+    cube("scale display",(0,-1.76,1.68),(.48,.025,.12),m["green"],.02)
+    for x in (-3.5,0,3.5):
+        cube("ceiling tube light",(x,.5,4.95),(2.1,.18,.08),m["white"],.035)
+    # Small Malayalam price board beside the counter.
+    cube("price board",(5.25,-1.5,2.3),(1.15,.12,1.5),m["dark"],.04)
+    text_label("price board heading","ഇന്നത്തെ വില",(4.78,-1.575,2.72),.16,m["yellow"])
+    text_label("price board rice","അരി  55",(4.78,-1.575,2.40),.15,m["white"])
+    text_label("price board dal","പരിപ്പ്  90",(4.78,-1.575,2.12),.14,m["white"])
 
 def build_phone(m, variant):
     cube("room floor",(0,0,-.3),(16,14,.5),m["concrete"])
@@ -196,15 +251,15 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
     root=make_presenter(m)
     # Scene-to-scene camera composition and gentle animated camera movement.
     bpy.ops.object.camera_add(location=(8,-17,8))
-    camera=bpy.context.object; camera.data.lens=42; aim(camera,(0,0,2.0)); bpy.context.scene.camera=camera
+    camera=bpy.context.object; camera.data.lens=50; aim(camera,(0,0,2.15)); bpy.context.scene.camera=camera
     bpy.ops.object.light_add(type="AREA",location=(-7,-9,12))
-    key=bpy.context.object; key.data.energy=1700; key.data.shape="DISK"; key.data.size=8; aim(key,(0,0,2))
+    key=bpy.context.object; key.data.energy=2100; key.data.shape="DISK"; key.data.size=6; aim(key,(0,0,2))
     bpy.ops.object.light_add(type="AREA",location=(7,3,8))
-    fill=bpy.context.object; fill.data.energy=900; fill.data.size=7; aim(fill,(0,0,2))
+    fill=bpy.context.object; fill.data.energy=1100; fill.data.size=5; aim(fill,(0,0,2))
     scene=bpy.context.scene
     if bpy.app.version >= (4,2,0): scene.render.engine="BLENDER_EEVEE_NEXT"
     else: scene.render.engine="BLENDER_EEVEE"
-    scene.eevee.taa_render_samples=8
+    scene.eevee.taa_render_samples=32
     scene.render.resolution_x=540; scene.render.resolution_y=960; scene.render.resolution_percentage=100
     scene.render.fps=FPS; scene.render.image_settings.file_format="PNG"; scene.render.image_settings.color_mode="RGB"
     scene.render.film_transparent=False; scene.view_settings.view_transform="AgX"
