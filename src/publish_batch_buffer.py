@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 API = "https://api.buffer.com"
 PAGE_SIZE = 100
 BATCH_SIZE = 6
+PUBLISH_COUNT = 4
+PUBLISH_WEEKDAYS = {0, 2, 4, 6}  # Monday, Wednesday, Friday, Sunday
 IST = ZoneInfo("Asia/Kolkata")
 ACTIVE_STATUSES = {"draft", "needs_approval", "scheduled", "sending", "sent"}
 VERIFIED_STATUSES = {"scheduled", "sending", "sent"}
@@ -65,6 +67,9 @@ def next_slots(service: str, now: datetime, count: int, existing_posts: list[dic
     slots: list[datetime] = []
     day = now.astimezone(IST).date()
     while len(slots) < count:
+        if day.weekday() not in PUBLISH_WEEKDAYS:
+            day += timedelta(days=1)
+            continue
         weekend = day.weekday() >= 5
         if service == "instagram":
             hour, minute = (12, 0) if weekend else (19, 30)
@@ -242,6 +247,7 @@ def main() -> None:
     if len(videos) != BATCH_SIZE:
         raise RuntimeError(f"Expected {BATCH_SIZE} explicitly approved videos; found {len(videos)}.")
 
+    publish_videos = videos[:PUBLISH_COUNT]
     stories = {}
     for video in videos:
         story_path = video.with_suffix(".json")
@@ -301,14 +307,14 @@ def main() -> None:
 
     now = datetime.now(IST)
     slots = {
-        service: next_slots(service, now, len(videos), existing[service])
+        service: next_slots(service, now, len(publish_videos), existing[service])
         for service in selected
     }
     outcomes: list[dict] = []
     newly_created: list[dict] = []
     already_present: list[dict] = []
 
-    for index, video in enumerate(videos):
+    for index, video in enumerate(publish_videos):
         story = stories[video.name]
         title = str(story.get("title") or "Malayalam Short").strip()[:100]
         tags = " ".join(str(tag) for tag in story.get("hashtags") or [])
@@ -379,7 +385,8 @@ def main() -> None:
     update_tracker(outcomes, tracker_path)
     print(
         f"Buffer verification complete: {len(newly_created)} new posts scheduled and verified; "
-        f"{len(already_present)} exact-URL duplicates safely skipped. Scheduled is not published."
+        f"{len(already_present)} exact-URL duplicates safely skipped; "
+        f"{len(videos) - len(publish_videos)} reviewed videos retained as reserves. Scheduled is not published."
     )
 
 
