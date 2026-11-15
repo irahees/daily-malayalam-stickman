@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"output"
 RAW=OUT/"blender_raw_frames"
 FINAL_FRAMES=OUT/"blender_final_frames"
-FPS=30
+FPS=24
 WIDTH,HEIGHT=540,960
 
 def main():
@@ -65,7 +65,7 @@ def main():
     subprocess.run([
         "ffmpeg","-y","-framerate",str(FPS),"-i",str(FINAL_FRAMES/"frame_%06d.jpg"),"-i",str(normalized_audio),
         "-map","0:v:0","-map","1:a:0","-vf","scale=1080:1920:flags=lanczos,setsar=1",
-        "-c:v","libx264","-preset","medium","-crf","20","-r","30","-fps_mode","cfr",
+        "-c:v","libx264","-preset","medium","-crf","20","-r","24","-fps_mode","cfr",
         "-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-shortest","-movflags","+faststart",str(output)
     ],check=True)
     probe=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_type,width,height","-show_entries","format=duration","-of","json",str(output)],check=True,capture_output=True,text=True)
