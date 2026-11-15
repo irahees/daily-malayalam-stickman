@@ -1,10 +1,6 @@
-name: Cancel unapproved Buffer batch
+name: Adjust Buffer cadence to four weekly posts
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/cancel_unapproved_posts.py"
-      - ".github/workflows/cancel-unapproved-buffer-posts.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,5 +17,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Cancel the 14 exact unapproved posts from run 43472096446
+      - name: Cancel the four exact Tuesday and Thursday overflow posts
         run: python src/cancel_unapproved_posts.py
