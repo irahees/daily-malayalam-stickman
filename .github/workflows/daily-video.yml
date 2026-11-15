@@ -25,17 +25,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install FFmpeg and Malayalam-compatible fonts
+      - name: Install Blender, FFmpeg and Malayalam-compatible fonts
         run: |
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
-          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ffmpeg fonts-noto-core
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y blender ffmpeg fonts-noto-core fonts-noto-extra libraqm-dev libharfbuzz-dev libfribidi-dev libjpeg-dev pkg-config libegl1 libgl1 libxrender1 libxext6 libxi6 libxfixes3
           command -v ffmpeg
           command -v ffprobe
       - name: Install Python packages
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-binary=Pillow -r requirements.txt
       - name: Validate Sarvam Bulbul v3 key
         shell: bash
         run: |
@@ -45,8 +45,10 @@ jobs:
           fi
       - name: Select offline Malayalam script
         run: python src/create_brief.py
-      - name: Generate Malayalam narration and MP4
-        run: python src/create_video.py
+      - name: Verify Malayalam shaping support
+        run: python -c "from PIL import features; assert features.check('raqm'), 'Pillow RAQM shaping support is required'; print('RAQM shaping enabled')"
+      - name: Generate FULL 3D Malayalam narration and MP4
+        run: python src/create_video_3d.py
       - name: Verify output video
         run: |
           test -s output/daily_malayalam_stickman.mp4
