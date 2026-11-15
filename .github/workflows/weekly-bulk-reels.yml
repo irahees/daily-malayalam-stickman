@@ -2,9 +2,11 @@ name: Daily Malayalam Video Batch
 on:
   schedule:
     - cron: "30 2 * * *" # Daily 08:00 IST; generation and storage only
+  workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: daily-malayalam-video-generation
@@ -20,6 +22,18 @@ jobs:
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Prevent duplicate generation on the same UTC/IST date
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          today="$(date -u +%F)"
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq "[.artifacts[] | select(.name == \"malayalam-daily-reels\" and .expired == false and (.created_at | startswith(\"$today\")))] | length")"
+          if [ "$existing" -gt 0 ]; then
+            echo "::error::A daily batch artifact already exists for $today UTC/IST; reuse it instead of regenerating."
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
