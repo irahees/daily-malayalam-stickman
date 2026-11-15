@@ -1,9 +1,20 @@
-name: Publish Malayalam batch automatically
+name: Publish approved Malayalam batch
+
 on:
-  workflow_run:
-    workflows: ["Daily Malayalam Video Batch"]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful generation run ID whose artifact you reviewed"
+        required: true
+        type: string
+      approved:
+        description: "Set to true only after reviewing this exact six-video batch"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
 
 permissions:
   contents: write
@@ -15,14 +26,14 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ inputs.approved == 'true' && inputs.source_run_id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
       VIDEO_ARTIFACT_DIR: video-artifact
-      SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Verify successful generation run
@@ -36,12 +47,12 @@ jobs:
             --jq 'select(.conclusion == "success" and .path == ".github/workflows/weekly-bulk-reels.yml") | .id' \
             | grep -Fx "$SOURCE_RUN_ID"
           test -n "$BUFFER_API_KEY"
-      - name: Download the generated six-video batch
+      - name: Download the reviewed six-video batch
         uses: actions/download-artifact@v4
         with:
           name: malayalam-daily-reels
           path: video-artifact
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify all six videos and their metadata
         shell: bash
@@ -70,16 +81,20 @@ jobs:
             cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
             test "$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$RUNNER_TEMP/media/$n")" = "30/1"
           done
-      - name: Host generated videos as public GitHub Release assets
+      - name: Host reviewed videos as public GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="daily-reels-$SOURCE_RUN_ID"
-          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Daily Malayalam Reels $SOURCE_RUN_ID" --notes "Generated Malayalam video batch."
+          tag="approved-daily-reels-$SOURCE_RUN_ID"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists; refusing to create duplicate posts."
+            exit 1
+          fi
+          gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $SOURCE_RUN_ID" --notes "Reviewed and approved Malayalam video batch."
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Schedule videos on Instagram and YouTube
+      - name: Schedule only the four weekly mirrored slots
         run: python src/publish_batch_buffer.py
       - name: Persist verified Buffer schedule in the tracking ledger
         run: |
@@ -90,6 +105,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No tracker changes to persist."
           else
-            git commit -m "Record automatic Buffer publishing schedule"
+            git commit -m "Record verified approved Buffer schedule"
             git push origin HEAD:main
           fi
