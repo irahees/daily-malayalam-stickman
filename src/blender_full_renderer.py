@@ -67,7 +67,7 @@ def make_materials():
       "orange":material("Orange",(.92,.25,.06))
     }
 
-def build_fuel(m):
+def build_fuel(m, variant=0):
     cube("station apron",(0,1,-.32),(20,18,.5),m["concrete"])
     cube("road",(0,-7,-.02),(22,5,.12),m["road"])
     cube("shop",(0,5,2.0),(9,2,4),m["concrete"],.12)
