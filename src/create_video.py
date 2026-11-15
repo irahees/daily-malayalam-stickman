@@ -724,4 +724,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # The public entry point is now 3D-only. Keep the legacy 2D helpers for
+    # shared Malayalam text shaping, but never generate a new 2D video.
+    import create_video_3d
+    create_video_3d.main()
