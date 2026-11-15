@@ -6,17 +6,13 @@ import sys
 import urllib.error
 import urllib.request
 
-# Exact posts created without approval by publisher run 43588025568.
-# Only these eight IDs are in scope; previously approved posts are untouched.
+# Exact Tuesday/Thursday overflow posts from the explicitly approved batch.
+# Keep Sunday, Monday, Wednesday and Friday slots: four posts per week per platform.
 POST_IDS = [
-    "6af83fef81e1228421ff62e0",
-    "6af83ff0d16af15d4d0d3391",
-    "6af83ff0d16af15d4d0d33de",
-    "6af83ff1d8bd2962e42491fc",
-    "6af83ff2d8bd2962e4249226",
-    "6af83ff2d8bd2962e4249254",
-    "6af83ff3d8bd2962e4249282",
-    "6af83ff4bb36d0090905a368",
+    "6af83a6bd16af15d4d0b4f45",  # Instagram, 2026-11-17
+    "6af83a6bd16af15d4d0b4f6d",  # YouTube, 2026-11-17
+    "6af83a6dbb36d0090903bd3b",  # Instagram, 2026-11-19
+    "6af83a6dbb36d0090903bec5",  # YouTube, 2026-11-19
 ]
 
 
@@ -45,7 +41,7 @@ def main() -> None:
     if not key:
         raise RuntimeError("BUFFER_API_KEY is missing.")
     mutation = """
-      mutation DeleteUnapprovedPost($input: DeletePostInput!) {
+      mutation DeleteUnscheduledOverflow($input: DeletePostInput!) {
         deletePost(input: $input) { __typename }
       }
     """
@@ -58,7 +54,7 @@ def main() -> None:
                 f"{json.dumps(result, ensure_ascii=False)}"
             )
         print(f"CANCELLED {post_id}")
-    print(f"Confirmed cancellation of all {len(POST_IDS)} exact unapproved Buffer posts.")
+    print(f"Confirmed cancellation of all {len(POST_IDS)} Tuesday/Thursday overflow posts.")
 
 
 if __name__ == "__main__":
