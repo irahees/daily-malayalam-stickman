@@ -15,6 +15,7 @@ API = "https://api.buffer.com"
 PAGE_SIZE = 100
 BATCH_SIZE = 6
 PUBLISH_COUNT = 4
+MAX_SCHEDULED_POSTS_PER_CHANNEL = 10  # Current Buffer plan limit confirmed by API response
 PUBLISH_WEEKDAYS = {0, 2, 4, 6}  # Monday, Wednesday, Friday, Sunday
 IST = ZoneInfo("Asia/Kolkata")
 ACTIVE_STATUSES = {"draft", "needs_approval", "scheduled", "sending", "sent"}
@@ -249,7 +250,6 @@ def main() -> None:
     if len(videos) != BATCH_SIZE:
         raise RuntimeError(f"Expected {BATCH_SIZE} explicitly approved videos; found {len(videos)}.")
 
-    publish_videos = videos[:PUBLISH_COUNT]
     stories = {}
     for video in videos:
         story_path = video.with_suffix(".json")
@@ -306,6 +306,24 @@ def main() -> None:
         }
         for service in selected
     }
+
+    queue_counts = {
+        service: sum(
+            1 for post in existing[service]
+            if str(post.get("status", "")).lower() in {"draft", "needs_approval", "scheduled", "sending"}
+        )
+        for service in selected
+    }
+    available_capacity = min(
+        max(0, MAX_SCHEDULED_POSTS_PER_CHANNEL - count)
+        for count in queue_counts.values()
+    )
+    publish_videos = videos[:min(PUBLISH_COUNT, available_capacity)]
+    print(
+        "Buffer queue capacity: "
+        + ", ".join(f"{service}={MAX_SCHEDULED_POSTS_PER_CHANNEL - queue_counts[service]}" for service in selected)
+        + f"; this run may schedule at most {len(publish_videos)} mirrored videos."
+    )
 
     now = datetime.now(IST)
     slots = {
