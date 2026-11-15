@@ -227,10 +227,10 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
 def category_for(text):
     t=text.lower()
     if any(x in t for x in ("പെട്രോൾ","ഇന്ധന","വാഹന","fuel","petrol")): return "fuel"
-    if any(x in t for x in ("കട","വില","വാങ്ങ","സാധന","വിതരണ","shop","പണം","രൂപ")): return "shop"
-    if any(x in t for x in ("ഫോൺ","ബാറ്ററി","ചാർജ്","മൊബൈൽ","ഇന്റർനെറ്റ്","നെറ്റ്വർക്ക്","ഓൺലൈൻ","ഫോൺ","battery","internet")): return "phone"
-    if any(x in t for x in ("മഴ","വെള്ളം","മണ്ണ്","കടൽ","ജലം","rain","water")): return "rain"
     if any(x in t for x in ("സ്വർണ്ണ","സ്വർണം","പവൻ","ആഭരണം","gold")): return "gold"
+    if any(x in t for x in ("ഫോൺ","ബാറ്ററി","ചാർജ്","മൊബൈൽ","ഇന്റർനെറ്റ്","നെറ്റ്വർക്ക്","ഓൺലൈൻ","battery","internet")): return "phone"
+    if any(x in t for x in ("മഴ","വെള്ളം","മണ്ണ്","കടൽ","ജലം","rain","water")): return "rain"
+    if any(x in t for x in ("കടകൾ","കടകള","കടയിലെ","കടയിൽ","വില","വാങ്ങ","സാധന","വിതരണ","shop","പണം","രൂപ")): return "shop"
     return "general"
 
 # Each of the six spoken beats gets its own 3D set and continuous animation.
