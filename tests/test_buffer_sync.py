@@ -4,13 +4,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import create_batch
 import publish_batch_buffer
 import sync_platform_posts
 
 
 class BufferSyncTests(unittest.TestCase):
     def test_topic_hashtags_are_relevant(self):
-        tags = publish_batch_buffer.hashtags_for({
+        tags = create_batch.hashtags_for({
             "topic": "ഫോൺ ബാറ്ററി പ്രശ്നം",
             "title": "ഒരു ദിവസം ചാർജ് ഇല്ലെങ്കിൽ?"
         })
