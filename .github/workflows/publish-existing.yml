@@ -1,12 +1,20 @@
-name: Publish Existing Malayalam Video
+name: Publish approved existing Malayalam video
 
 on:
   workflow_dispatch:
     inputs:
       video_run_id:
-        description: "Successful video-generation run ID"
+        description: "Successful video-generation run ID whose video you reviewed"
         required: true
-        default: "43256850512"
+        type: string
+      approved:
+        description: "Set to true only after reviewing this exact video"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
 
 permissions:
   contents: write
@@ -18,6 +26,7 @@ concurrency:
 
 jobs:
   publish:
+    if: ${{ inputs.approved == 'true' && inputs.video_run_id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -43,7 +52,7 @@ jobs:
           name: malayalam-short-video
           path: video-artifact
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.inputs.video_run_id }}
+          run-id: ${{ inputs.video_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate artifact
         shell: bash
@@ -58,16 +67,20 @@ jobs:
           mkdir -p "$RUNNER_TEMP/buffer-media"
           ffmpeg -y -i "$VIDEO" -map 0:v:0 -map '0:a?' -vf "fps=30,format=yuv420p" -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
           ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate,avg_frame_rate -of default=noprint_wrappers=1 "$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
-      - name: Host video as a public GitHub Release asset
+      - name: Host reviewed video as a public GitHub Release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           VIDEO="$RUNNER_TEMP/buffer-media/daily_malayalam_stickman.mp4"
-          TAG="manual-video-${GITHUB_RUN_ID}"
-          ASSET="daily_malayalam_stickman-${GITHUB_RUN_ID}.mp4"
-          gh release create "$TAG" "$VIDEO#$ASSET" --title "Manual Malayalam Short ${GITHUB_RUN_ID}" --notes "Selected for Buffer publishing."
+          TAG="approved-manual-video-${{ inputs.video_run_id }}"
+          ASSET="daily_malayalam_stickman-${{ inputs.video_run_id }}.mp4"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Reusing the existing release for this reviewed video."
+          else
+            gh release create "$TAG" "$VIDEO#$ASSET" --title "Approved Malayalam Short ${{ inputs.video_run_id }}" --notes "Reviewed and approved single-video upload."
+          fi
           echo "BUFFER_VIDEO_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" >> "$GITHUB_ENV"
-      - name: Publish through Buffer
+      - name: Publish approved video through Buffer
         run: python src/publish_buffer.py
