@@ -11,3 +11,15 @@ batch_date_ist,video,platform,title,scheduled_date_ist,scheduled_time_ist,status
 2026-11-14,05.mp4,youtube,ഒരു മഴത്തുള്ളിയുടെ യാത്ര,2026-11-19,18:30,cancelled,6af83a6dbb36d0090903bec5,,,,,,,,,Cancelled to keep the first test week to four posts per platform; not published.
 2026-11-14,06.mp4,instagram,ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?,2026-11-20,19:30,scheduled,6af83a6ed16af15d4d0b52c9,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
 2026-11-14,06.mp4,youtube,ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?,2026-11-20,18:30,scheduled,6af83a6f81e1228421fd5efc,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
+2026-11-15,01.mp4,instagram,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,01.mp4,youtube,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,02.mp4,instagram,ഒരു രൂപ ഇല്ലാതായാൽ?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,02.mp4,youtube,ഒരു രൂപ ഇല്ലാതായാൽ?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,03.mp4,instagram,ഇന്റർനെറ്റ് ഇല്ലാത്ത ഒരു ദിവസം,,,awaiting_approval,,,,,,,,,,
+2026-11-15,03.mp4,youtube,ഇന്റർനെറ്റ് ഇല്ലാത്ത ഒരു ദിവസം,,,awaiting_approval,,,,,,,,,,
+2026-11-15,04.mp4,instagram,ഒരു മഴത്തുള്ളിയുടെ യാത്ര,,,awaiting_approval,,,,,,,,,,
+2026-11-15,04.mp4,youtube,ഒരു മഴത്തുള്ളിയുടെ യാത്ര,,,awaiting_approval,,,,,,,,,,
+2026-11-15,05.mp4,instagram,ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,05.mp4,youtube,ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,06.mp4,instagram,പെട്രോൾ പമ്പുകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
+2026-11-15,06.mp4,youtube,പെട്രോൾ പമ്പുകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
