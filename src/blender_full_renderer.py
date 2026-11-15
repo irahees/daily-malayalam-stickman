@@ -94,11 +94,11 @@ def build_fuel(m, variant=0):
     cube("road",(0,-7,-.02),(22,5,.12),m["road"])
     cube("shop",(0,5,2.0),(9,2,4),m["concrete"],.12)
     cube("shop fascia",(0,3.93,3.35),(8.8,.15,.62),m["red"],.04)
-    text_label("Fuel station channel sign","SIMULI MALAYALAM",(0,3.82,3.30),.34,m["yellow"])
+    text_label("Fuel station channel sign","സിമുലി മലയാളം",(0,3.82,3.30),.34,m["yellow"])
     cube("glass frontage",(0,3.88,1.9),(7.6,.1,1.9),m["glass"],.03)
     cube("canopy",(0,.1,4.65),(12,5,.35),m["white"],.12)
     cube("canopy trim",(0,-2.42,4.47),(12,.18,.3),m["red"],.04)
-    text_label("Fuel canopy sign","PETROL  •  DIESEL",(2.1,-2.53,4.49),.28,m["dark"])
+    text_label("Fuel canopy sign","പെട്രോൾ  •  ഡീസൽ",(2.1,-2.53,4.49),.28,m["dark"])
     for x in (-4.8,4.8): cube("canopy pillar",(x,-1.1,2.2),(.22,.22,4.3),m["white"])
     for x in (-3,0,3):
         cube("fuel dispenser",(x,-1.1,1.18),(.85,.7,2.15),m["white"],.1)
@@ -132,7 +132,7 @@ def build_shop(m, variant):
             for k in range(6):
                 px=x-1.30+k*.52
                 colors=[m["yellow"],m["orange"],m["green"],m["blue"],m["red"],m["white"]]
-                package_box("branded grocery packet",(px,1.98,z+.38),(.36,.28,.68),colors[k],["RICE","TEA","DAL","OIL","SALT","SOAP"][k],m)
+                package_box("branded grocery packet",(px,1.98,z+.38),(.36,.28,.68),colors[k],["അരി","ചായ","പരിപ്പ്","എണ്ണ","ഉപ്പ്","സോപ്പ്"][k],m)
     # Rice sacks, dhal sacks, oil bottles and crates of fresh produce.
     for x in (-4.2,-2.9,2.9,4.2):
         sack=sphere("stitched rice sack",(x,-1.8,.62),(.48,.42,.66),m["white"])
@@ -252,19 +252,30 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
     extras=builder(m,scene_index) if category=="fuel" else builder(m,scene_index)
     root=make_presenter(m)
     # Scene-to-scene camera composition and gentle animated camera movement.
-    bpy.ops.object.camera_add(location=(8,-17,8))
-    camera=bpy.context.object; camera.data.lens=50; aim(camera,(0,0,2.15)); bpy.context.scene.camera=camera
+    bpy.ops.object.camera_add(location=(9,-20,8.5))
+    camera=bpy.context.object; camera.data.lens=42; aim(camera,(0,-.1,2.25)); bpy.context.scene.camera=camera
+    camera.data.dof.use_dof=False
     bpy.ops.object.light_add(type="AREA",location=(-7,-9,12))
-    key=bpy.context.object; key.data.energy=2100; key.data.shape="DISK"; key.data.size=6; aim(key,(0,0,2))
+    key=bpy.context.object; key.data.energy=2600; key.data.shape="DISK"; key.data.size=7; key.data.use_shadow=True; aim(key,(0,0,2))
     bpy.ops.object.light_add(type="AREA",location=(7,3,8))
-    fill=bpy.context.object; fill.data.energy=1100; fill.data.size=5; aim(fill,(0,0,2))
+    fill=bpy.context.object; fill.data.energy=1400; fill.data.size=6; fill.data.use_shadow=True; aim(fill,(0,0,2))
+    bpy.ops.object.light_add(type="AREA",location=(1,7,9))
+    rim=bpy.context.object; rim.data.energy=1700; rim.data.size=5; rim.data.use_shadow=True; aim(rim,(0,0,2))
     scene=bpy.context.scene
     if bpy.app.version >= (4,2,0): scene.render.engine="BLENDER_EEVEE_NEXT"
     else: scene.render.engine="BLENDER_EEVEE"
-    scene.eevee.taa_render_samples=32
+    scene.eevee.taa_render_samples=64
+    # Improve grounded 3D realism: contact shadows and ambient occlusion.
+    try:
+        scene.eevee.use_gtao=True
+        scene.eevee.gtao_distance=3.0
+        scene.eevee.gtao_factor=1.35
+    except Exception:
+        pass
     scene.render.resolution_x=540; scene.render.resolution_y=960; scene.render.resolution_percentage=100
     scene.render.fps=FPS; scene.render.image_settings.file_format="PNG"; scene.render.image_settings.color_mode="RGB"
     scene.render.film_transparent=False; scene.view_settings.view_transform="AgX"
+    scene.view_settings.look="AgX - Medium High Contrast"
     scene.frame_start=1; scene.frame_end=max(frames,1)
     # Animate the host through the scene; each beat has a subtle different gesture.
     for f in range(1,frames+1):
