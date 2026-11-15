@@ -3,7 +3,13 @@ name: Validate Malayalam video and Buffer pipeline
 on:
   push:
     branches:
+      - main
       - feature/two-way-platform-sync
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "src/**"
