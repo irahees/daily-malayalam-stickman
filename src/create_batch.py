@@ -8,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from create_brief import STORIES
-import create_video
+import create_video_3d
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
@@ -123,7 +123,7 @@ def main() -> None:
         story_path = OUT / "story.json"
         story_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Generating video {index}/{BATCH_SIZE}: {story['title']} | hook: {story['hook']}")
-        create_video.main()
+        create_video_3d.main()
 
         source = OUT / "daily_malayalam_stickman.mp4"
         if not source.is_file() or source.stat().st_size < 100_000:
