@@ -1,0 +1,32 @@
+name: Blender 3D Preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender ffmpeg
+          blender --version
+      - name: Render procedural 3D scene
+        env:
+          BLENDER_OUTPUT: output/blender_preview.mp4
+        run: |
+          set -euo pipefail
+          mkdir -p output blender_frames
+          blender --background --factory-startup --python src/blender_renderer.py
+          test "$(find blender_frames -maxdepth 1 -name '*.png' | wc -l)" -ge 80
+          ffmpeg -y -framerate 30 -i blender_frames/frame_\%04d.png -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -vf "scale=720:1280:flags=lanczos,setsar=1" output/blender_preview.mp4
+          ffprobe -v error -show_entries format=duration -of csv=p=0 output/blender_preview.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blender-3d-preview
+          path: output/blender_preview.mp4
+          if-no-files-found: error
+          retention-days: 7
