@@ -90,7 +90,7 @@ def get_font(size: int, bold: bool = False):
 def draw_text(draw: ImageDraw.ImageDraw, *args, **kwargs):
     """Always ask RAQM/HarfBuzz to shape text with Malayalam language rules."""
     kwargs.setdefault("language", "ml")
-    return draw.text(*args, **kwargs)
+    return draw_text(draw, *args, **kwargs)
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int):
@@ -130,10 +130,10 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.rectangle((0, 780, 720, 1280), fill=(72, 48, 47))
             draw.rounded_rectangle((45, 220, 675, 690), radius=22, fill=(12, 27, 58), outline=(241, 177, 67), width=8)
             draw.rectangle((65, 240, 655, 310), fill=(192, 40, 32))
-            draw.text((92, 254), "BREAKING NEWS", font=get_font(34, True), fill=(255,255,255))
-            draw.text((90, 355), "1 പവൻ = ₹1 ?", font=get_font(48, True), fill=(255,220,90), stroke_width=2, stroke_fill=(50,20,20))
+            draw_text(draw, (92, 254), "BREAKING NEWS", font=get_font(34, True), fill=(255,255,255))
+            draw_text(draw, (90, 355), "1 പവൻ = ₹1 ?", font=get_font(48, True), fill=(255,220,90), stroke_width=2, stroke_fill=(50,20,20))
             draw.line((100, 520, 620, 520), fill=(245,190,60), width=6)
-            draw.text((130, 560), "GOLD PRICE SHOCK", font=get_font(28, True), fill=cream)
+            draw_text(draw, (130, 560), "GOLD PRICE SHOCK", font=get_font(28, True), fill=cream)
             # News desk and microphone.
             draw.rounded_rectangle((90, 820, 630, 1010), radius=18, fill=(117,65,43), outline=ink, width=7)
             draw.rectangle((115, 845, 605, 890), fill=(163,91,55))
@@ -155,19 +155,19 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.rounded_rectangle((80,875,640,1010), radius=18, fill=(121,69,43), outline=ink, width=7)
             if index == 2:
                 draw.rounded_rectangle((185,105,535,210), radius=15, fill=(255,239,202), outline=(70,42,30), width=5)
-                draw.text((225,130), "1 പവൻ = ₹1", font=get_font(38,True), fill=(174,35,28))
+                draw_text(draw, (225,130), "1 പവൻ = ₹1", font=get_font(38,True), fill=(174,35,28))
         elif index == 3:
             draw.rectangle((0,0,720,1280), fill=(191,211,219))
             draw.rectangle((0,880,720,1280), fill=(116,92,73))
             draw.rectangle((45,190,675,880), fill=(228,225,207), outline=ink, width=7)
             draw.rectangle((75,230,645,310), fill=(196,47,34))
-            draw.text((180,246), "GOLD LOAN", font=get_font(42,True), fill=(255,229,156))
+            draw_text(draw, (180,246), "GOLD LOAN", font=get_font(42,True), fill=(255,229,156))
             draw.rectangle((90,430,630,490), fill=(125,77,48), outline=ink, width=5)
             draw.rectangle((125,490,160,865), fill=(96,59,42))
             draw.rectangle((560,490,595,865), fill=(96,59,42))
             draw.rounded_rectangle((220,560,500,720), radius=12, fill=(250,247,233), outline=ink, width=5)
-            draw.text((255,590), "LOAN VALUE", font=get_font(26,True), fill=(65,65,65))
-            draw.text((280,635), "₹1 ?", font=get_font(48,True), fill=(186,38,30))
+            draw_text(draw, (255,590), "LOAN VALUE", font=get_font(26,True), fill=(65,65,65))
+            draw_text(draw, (280,635), "₹1 ?", font=get_font(48,True), fill=(186,38,30))
             draw.ellipse((530,350,620,440), fill=(83,91,102), outline=ink, width=6)
             draw.line((575,395,575,350), fill=(45,49,58), width=8)
             draw.line((575,395,615,415), fill=(45,49,58), width=8)
@@ -179,9 +179,9 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.line((215,340,215,560), fill=ink, width=5)
             draw.line((120,450,310,450), fill=ink, width=5)
             draw.rounded_rectangle((390,590,600,790), radius=18, fill=(128,75,49), outline=ink, width=6)
-            draw.text((420,635), "SAVINGS", font=get_font(26,True), fill=cream)
+            draw_text(draw, (420,635), "SAVINGS", font=get_font(26,True), fill=cream)
             draw.ellipse((455,690,535,770), fill=(255,205,76), outline=ink, width=5)
-            draw.text((476,706), "₹", font=get_font(42,True), fill=(80,45,20))
+            draw_text(draw, (476,706), "₹", font=get_font(42,True), fill=(80,45,20))
         else:
             draw.rectangle((0,0,720,1280), fill=(255,192,65))
             for k in range(9):
@@ -189,9 +189,9 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
                 yy=600+k*100*math.sin(k*math.tau/9)
                 draw.line((360,610,xx,yy), fill=(255,226,139), width=8)
             draw.ellipse((245,365,475,595), fill=(255,220,120), outline=(108,75,36), width=9)
-            draw.text((295,410), "1", font=get_font(130,True), fill=(122,74,25))
+            draw_text(draw, (295,410), "1", font=get_font(130,True), fill=(122,74,25))
             draw.rounded_rectangle((120,760,600,920), radius=25, fill=(255,247,224), outline=ink, width=6)
-            draw.text((170,795), "നിങ്ങൾ എന്ത് വാങ്ങും?", font=get_font(34,True), fill=(70,45,35))
+            draw_text(draw, (170,795), "നിങ്ങൾ എന്ത് വാങ്ങും?", font=get_font(34,True), fill=(70,45,35))
         return labels[index]
 
     if battery:
@@ -206,13 +206,13 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.rectangle((330,342,390,363), fill=(65,174,91))
             if index == 1:
                 draw.ellipse((290,470,430,610), fill=(255,214,93), outline=ink, width=5)
-                draw.text((330,510), "☀", font=get_font(62,True), fill=(110,75,35))
+                draw_text(draw, (330,510), "☀", font=get_font(62,True), fill=(110,75,35))
             elif index == 2:
                 draw.rectangle((260,430,460,650), fill=(50,78,130))
                 draw.polygon([(330,480),(330,600),(415,540)], fill=(255,255,255))
             elif index == 5:
-                draw.text((280,500), "BATTERY", font=get_font(28,True), fill=(35,55,65))
-                draw.text((320,560), "100%", font=get_font(48,True), fill=(35,125,70))
+                draw_text(draw, (280,500), "BATTERY", font=get_font(28,True), fill=(35,55,65))
+                draw_text(draw, (320,560), "100%", font=get_font(48,True), fill=(35,125,70))
         elif index == 3:
             draw.line((560,300,560,890), fill=(65,65,68), width=14)
             for yy in (390,470,550):
@@ -220,7 +220,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.ellipse((530,260,590,320), fill=(220,70,60), outline=ink, width=4)
         else:
             draw.rounded_rectangle((100,420,620,760), radius=24, fill=(47,65,79), outline=ink, width=6)
-            draw.text((165,480), "BATTERY USAGE", font=get_font(36,True), fill=cream)
+            draw_text(draw, (165,480), "BATTERY USAGE", font=get_font(36,True), fill=cream)
             for k,ww in enumerate((330,250,180)):
                 yy=560+k*55
                 draw.rounded_rectangle((165,yy,165+ww,yy+22), radius=10, fill=(77,190,125))
@@ -237,10 +237,10 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
                 for k in range(3):
                     draw.rounded_rectangle((260,390+k*95,450,445+k*95), radius=15, fill=(130,190,220))
             elif index == 2:
-                draw.text((285,420), "UPI", font=get_font(70,True), fill=(40,120,90))
-                draw.text((280,540), "₹ 250", font=get_font(45,True), fill=(45,55,65))
+                draw_text(draw, (285,420), "UPI", font=get_font(70,True), fill=(40,120,90))
+                draw_text(draw, (280,540), "₹ 250", font=get_font(45,True), fill=(45,55,65))
             else:
-                draw.text((275,430), "OFFLINE", font=get_font(35,True), fill=(45,65,80))
+                draw_text(draw, (275,430), "OFFLINE", font=get_font(35,True), fill=(45,65,80))
                 draw.line((280,540,440,540), fill=(205,70,60), width=8)
         elif index == 3:
             draw.line((550,250,550,900), fill=(62,67,75), width=14)
@@ -282,7 +282,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
                 draw.arc((xx,700,xx+90,730),0,180,fill=(190,226,238),width=4)
         else:
             draw.ellipse((210,330,510,630), fill=(77,167,209), outline=ink, width=8)
-            draw.text((290,420), "SAVE", font=get_font(58,True), fill=(255,255,255))
+            draw_text(draw, (290,420), "SAVE", font=get_font(58,True), fill=(255,255,255))
         return labels[index]
 
     if fuel:
@@ -304,7 +304,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
         # Station shop and glass frontage.
         draw.rectangle((75, 515, 645, 850), fill=(242, 233, 207), outline=ink, width=6)
         draw.rectangle((95, 540, 625, 620), fill=(194, 43, 38), outline=ink, width=4)
-        draw.text((205, 555), "PETROL STATION", font=get_font(30, True), fill=(255, 245, 215))
+        draw_text(draw, (205, 555), "PETROL STATION", font=get_font(30, True), fill=(255, 245, 215))
         draw.rectangle((110, 650, 610, 830), fill=(142, 192, 202), outline=ink, width=5)
         for wx in (275, 440):
             draw.line((wx, 650, wx, 830), fill=(245, 244, 224), width=7)
@@ -335,7 +335,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
                 draw.ellipse((wheel_x-25, 1050, wheel_x+25, 1100), fill=(34, 38, 42), outline=ink, width=4)
         if index == 5:
             draw.rounded_rectangle((190, 910, 530, 1085), radius=24, fill=(250, 238, 204), outline=ink, width=6)
-            draw.text((245, 965), "FUEL OR EV?", font=get_font(30, True), fill=(47, 58, 62))
+            draw_text(draw, (245, 965), "FUEL OR EV?", font=get_font(30, True), fill=(47, 58, 62))
         return labels[index]
 
     if shop:
@@ -349,7 +349,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.rectangle((0,610,720,930), fill=(178,197,183))
             draw.rectangle((65,280,655,840), fill=(236,205,157), outline=ink, width=8)
             draw.rectangle((65,280,655,390), fill=(180,48,38), outline=ink, width=5)
-            draw.text((205,310), "LOCAL SHOP", font=get_font(38,True), fill=(255,239,196))
+            draw_text(draw, (205,310), "LOCAL SHOP", font=get_font(38,True), fill=(255,239,196))
             draw.rectangle((125,420,595,790), fill=(132,139,145), outline=ink, width=7)
             for yy in range(455,780,38):
                 draw.line((140,yy,580,yy), fill=(75,83,91), width=5)
@@ -365,7 +365,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
                     xx=112+col*84
                     draw.rounded_rectangle((xx,yy,xx+54,yy+82), radius=9, fill=goods[(row+col)%4], outline=ink, width=4)
             draw.ellipse((475,260,575,360), fill=(255,242,205), outline=ink, width=4)
-            draw.text((490,286), "MILK", font=get_font(20,True), fill=(60,70,75))
+            draw_text(draw, (490,286), "MILK", font=get_font(20,True), fill=(60,70,75))
         elif index == 2:
             # Warehouse racks and stacked cartons.
             draw.rectangle((40,250,680,890), fill=(207,221,224), outline=ink, width=7)
@@ -387,7 +387,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             for cx in (205,525):
                 draw.ellipse((cx-52,720,cx+52,824), fill=(38,43,48), outline=ink, width=5)
                 draw.ellipse((cx-23,749,cx+23,795), fill=(220,220,210), outline=ink, width=4)
-            draw.text((170,575), "DELIVERY", font=get_font(30,True), fill=(255,255,255))
+            draw_text(draw, (170,575), "DELIVERY", font=get_font(30,True), fill=(255,255,255))
         elif index == 4:
             # Connected supply chain: warehouse, vehicle and storefront.
             draw.rectangle((55,340,250,660), fill=(215,178,127), outline=ink, width=6)
@@ -399,7 +399,7 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.ellipse((405,535,450,580), fill=(45,48,52), outline=ink, width=4)
             draw.rectangle((500,360,665,665), fill=(235,205,157), outline=ink, width=6)
             draw.rectangle((500,360,665,425), fill=(180,48,38))
-            draw.text((515,378), "SHOP", font=get_font(25,True), fill=(255,239,196))
+            draw_text(draw, (515,378), "SHOP", font=get_font(25,True), fill=(255,239,196))
             draw.line((260,495,300,495), fill=(58,119,89), width=9)
             draw.polygon([(292,480),(312,495),(292,510)], fill=(58,119,89))
             draw.line((450,495,500,495), fill=(58,119,89), width=9)
@@ -409,9 +409,9 @@ def draw_story_background(draw, index: int, line: str, title: str, frame: int, p
             draw.rectangle((55,260,665,900), fill=(255,241,211), outline=ink, width=7)
             draw.rectangle((95,690,625,790), fill=(139,83,53), outline=ink, width=5)
             draw.rectangle((135,510,230,680), fill=(238,230,205), outline=ink, width=4)
-            draw.text((145,565), "RICE", font=get_font(22,True), fill=(65,65,60))
+            draw_text(draw, (145,565), "RICE", font=get_font(22,True), fill=(65,65,60))
             draw.rounded_rectangle((285,545,380,680), radius=14, fill=(239,239,223), outline=ink, width=4)
-            draw.text((302,590), "MILK", font=get_font(22,True), fill=(65,65,60))
+            draw_text(draw, (302,590), "MILK", font=get_font(22,True), fill=(65,65,60))
             draw.ellipse((445,565,545,665), fill=(217,67,55), outline=ink, width=4)
             draw.ellipse((535,580,610,655), fill=(88,155,82), outline=ink, width=4)
         return labels[index]
@@ -599,9 +599,9 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     title_font = get_font(30, bold=True)
     body_font = get_font(31, bold=True)
     draw.rounded_rectangle((28, 30, 692, 124), radius=22, fill=(17, 27, 43), outline=(246, 190, 87), width=3)
-    draw.text((48, 54), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(17, 27, 43))
+    draw_text(draw, (48, 54), title, font=title_font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(17, 27, 43))
     draw.rounded_rectangle((515, 142, 680, 190), radius=14, fill=(17, 27, 43))
-    draw.text((535, 151), scene_label, font=get_font(18, True), fill=(255, 213, 125))
+    draw_text(draw, (535, 151), scene_label, font=get_font(18, True), fill=(255, 213, 125))
     accent_colors = [(255, 202, 82), (102, 220, 231), (255, 132, 119), (160, 232, 164), (255, 202, 82), (190, 166, 255)]
     accent = accent_colors[index % len(accent_colors)]
     draw.rounded_rectangle((24, 1038, 696, 1238), radius=25, fill=(15, 24, 37), outline=accent, width=4)
@@ -609,7 +609,7 @@ def draw_scene_frame(index: int, line: str, title: str, frame: int, scene_frames
     rows = wrap_text(draw, line, body_font, 575)
     y = 1087
     for row in rows[:3]:
-        draw.text((58, y), row, font=body_font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(10, 15, 23))
+        draw_text(draw, (58, y), row, font=body_font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(10, 15, 23))
         y += 44
 
     FRAMES.mkdir(parents=True, exist_ok=True)
