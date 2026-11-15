@@ -264,7 +264,7 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
     scene=bpy.context.scene
     if bpy.app.version >= (4,2,0): scene.render.engine="BLENDER_EEVEE_NEXT"
     else: scene.render.engine="BLENDER_EEVEE"
-    scene.eevee.taa_render_samples=64
+    scene.eevee.taa_render_samples=8
     # Improve grounded 3D realism: contact shadows and ambient occlusion.
     try:
         scene.eevee.use_gtao=True
