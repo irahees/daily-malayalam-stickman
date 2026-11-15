@@ -108,6 +108,11 @@ def main() -> None:
         shutil.rmtree(old) if old.is_dir() else old.unlink()
 
     tracker_rows = read_tracker()
+    if any(row.get("batch_date_ist") == batch_date for row in tracker_rows):
+        raise RuntimeError(
+            f"A batch for {batch_date} IST is already recorded; reuse its existing artifact "
+            "instead of regenerating the same day's videos."
+        )
     known_rows = {
         (row.get("batch_date_ist"), row.get("video"), row.get("platform"))
         for row in tracker_rows
