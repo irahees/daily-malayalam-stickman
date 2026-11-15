@@ -89,12 +89,19 @@ def write_tracker(rows: list[dict]) -> None:
 
 
 def main() -> None:
-    if len(STORIES) < BATCH_SIZE:
-        raise RuntimeError(f"At least {BATCH_SIZE} distinct scripts are required.")
+    if len(STORIES) < BATCH_SIZE or len(STORIES) % BATCH_SIZE != 0:
+        raise RuntimeError(
+            f"The story bank must contain a multiple of {BATCH_SIZE} scripts "
+            "so consecutive daily batches do not overlap."
+        )
+    if len({str(story.get("title", "")).strip() for story in STORIES}) != len(STORIES):
+        raise RuntimeError("The story bank contains duplicate titles; refusing to generate a repetitive batch.")
     now_ist = datetime.now(IST)
     batch_date = now_ist.date().isoformat()
-    start = now_ist.date().toordinal() % len(STORIES)
+    start = (now_ist.date().toordinal() * BATCH_SIZE) % len(STORIES)
     selected_stories = [STORIES[(start + offset) % len(STORIES)] for offset in range(BATCH_SIZE)]
+    if len({str(story["title"]).strip() for story in selected_stories}) != BATCH_SIZE:
+        raise RuntimeError("The selected daily batch contains duplicate story titles.")
 
     BATCH.mkdir(parents=True, exist_ok=True)
     for old in BATCH.iterdir():
