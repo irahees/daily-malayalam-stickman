@@ -23,16 +23,19 @@ class DailyBatchTests(unittest.TestCase):
 
     def test_seven_daily_batches_do_not_repeat_stories(self):
         first_day = datetime(2026, 11, 15, 8, 0, tzinfo=IST).date()
+        tracker_rows = []
         all_titles = []
         for offset in range(7):
             day = first_day + timedelta(days=offset)
-            start = (day.toordinal() * create_batch.BATCH_SIZE) % len(create_brief.STORIES)
-            batch = [
-                create_brief.STORIES[(start + index) % len(create_brief.STORIES)]["title"]
-                for index in range(create_batch.BATCH_SIZE)
-            ]
+            selected = create_batch.select_stories(day, tracker_rows)
+            batch = [story["title"] for story in selected]
+            self.assertEqual(len(batch), create_batch.BATCH_SIZE)
             self.assertEqual(len(set(batch)), create_batch.BATCH_SIZE)
             all_titles.extend(batch)
+            tracker_rows.extend(
+                {"batch_date_ist": day.isoformat(), "title": title}
+                for title in batch
+            )
         self.assertEqual(len(set(all_titles)), 42)
 
     def test_recent_tracker_titles_are_skipped(self):
