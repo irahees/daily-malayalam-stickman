@@ -153,7 +153,7 @@ def asset_urls(post: dict) -> set[str]:
     }
 
 
-def create_post(key: str, channel: dict, video_url: str, title: str, caption: str, service: str, due_at: str) -> dict:
+def create_post(key: str, channel: dict, video_url: str, title: str, caption: str, service: str) -> dict:
     if service == "instagram":
         metadata = {
             "instagram": {
@@ -187,8 +187,7 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
         "text": caption,
         "channelId": channel["id"],
         "schedulingType": "automatic",
-        "mode": "customScheduled",
-        "dueAt": due_at,
+        "mode": "addToQueue",
         "assets": [{
             "video": {
                 "url": video_url,
@@ -332,10 +331,7 @@ def main() -> None:
     )
 
     now = datetime.now(IST)
-    slots = {
-        service: next_slots(service, now, len(publish_videos), existing[service])
-        for service in selected
-    }
+    # Use Buffer queue slots so each channel follows its saved/recommended Posting Schedule.
     outcomes: list[dict] = []
     newly_created: list[dict] = []
     already_present: list[dict] = []
@@ -348,7 +344,6 @@ def main() -> None:
         verify_public_video_url(video_url)
 
         for service in ("instagram", "youtube"):
-            due_at = as_utc_iso(slots[service][index])
             if video_url in existing_by_url[service]:
                 post = existing_by_url[service][video_url]
                 outcome = {
@@ -357,7 +352,7 @@ def main() -> None:
                     "batch_date_ist": story["batch_date_ist"],
                     "post_id": post["id"],
                     "status": str(post.get("status", "")).lower(),
-                    "due_at": post.get("dueAt") or due_at,
+                    "due_at": post.get("dueAt"),
                 }
                 already_present.append(outcome)
                 outcomes.append(outcome)
@@ -368,14 +363,14 @@ def main() -> None:
                 caption = str(story.get("instagram_caption") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Reels")
             else:
                 caption = str(story.get("youtube_description") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Shorts")
-            post = create_post(key, selected[service], video_url, title, caption, service, due_at)
+            post = create_post(key, selected[service], video_url, title, caption, service)
             outcome = {
                 "service": service,
                 "video": video.name,
                 "batch_date_ist": story["batch_date_ist"],
                 "post_id": post["id"],
                 "status": str(post.get("status", "")).lower(),
-                "due_at": post.get("dueAt") or due_at,
+                "due_at": post.get("dueAt"),
             }
             newly_created.append(outcome)
             outcomes.append(outcome)
