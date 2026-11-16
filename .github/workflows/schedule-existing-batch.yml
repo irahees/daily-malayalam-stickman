@@ -1,0 +1,87 @@
+name: Schedule existing Malayalam batch through Buffer queue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/schedule-existing-batch.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: schedule-existing-malayalam-batch-43787417002
+  cancel-in-progress: false
+
+jobs:
+  schedule:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
+      SOURCE_RUN_ID: "43787417002"
+      VIDEO_ARTIFACT_DIR: video-artifact
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the existing successful generation run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq 'select(.conclusion == "success" and .path == ".github/workflows/weekly-bulk-reels.yml") | .id' | grep -Fx "$SOURCE_RUN_ID"
+          test -n "$BUFFER_API_KEY"
+      - name: Download the existing six-video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: malayalam-daily-reels
+          path: video-artifact
+          run-id: 43787417002
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify the batch
+        run: |
+          set -euo pipefail
+          test "$(find video-artifact -maxdepth 1 -name '*.mp4' | wc -l)" -eq 6
+          test "$(find video-artifact -maxdepth 1 -name '*.json' | wc -l)" -eq 6
+          test -s video-artifact/07_tracker.csv
+      - name: Install FFmpeg
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y ffmpeg
+      - name: Convert videos for platform compatibility
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/media"
+          for f in video-artifact/*.mp4; do
+            n="$(basename "$f")"
+            ffmpeg -y -i "$f" -map 0:v:0 -map '0:a?' -vf "fps=30,format=yuv420p" -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr -c:a aac -b:a 192k -movflags +faststart "$RUNNER_TEMP/media/$n"
+            cp "${f%.mp4}.json" "$RUNNER_TEMP/media/${n%.mp4}.json"
+          done
+      - name: Host videos as public release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="approved-daily-reels-$SOURCE_RUN_ID"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Reusing existing release assets."
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Malayalam Reels $SOURCE_RUN_ID" --notes "Existing generated Malayalam video batch."
+          fi
+          echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
+      - name: Schedule videos in each channel's next Buffer Posting Schedule slots
+        run: python src/publish_batch_buffer.py
+      - name: Persist verified Buffer results
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tracking/07_tracker.csv
+          if git diff --cached --quiet; then
+            echo "No tracker changes."
+          else
+            git commit -m "Record Buffer queue schedule for existing Malayalam batch"
+            git push origin HEAD:main
+          fi
