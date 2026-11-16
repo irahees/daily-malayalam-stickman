@@ -49,12 +49,13 @@ class DailyBatchTests(unittest.TestCase):
         self.assertNotIn("കേരളത്തിലെ കടകൾ അടച്ചാൽ?", titles)
 
     def test_titles_can_rotate_after_the_six_day_cooldown(self):
-        batch_day = datetime(2026, 11, 21, 8, 0, tzinfo=IST).date()
+        batch_day = datetime(2026, 11, 16, 8, 0, tzinfo=IST).date()
         tracker_rows = [
-            {"batch_date_ist": "2026-11-14", "title": "കടൽവെള്ളം കുടിക്കാമോ?"},
+            {"batch_date_ist": "2026-11-09", "title": "കടൽവെള്ളം കുടിക്കാമോ?"},
         ]
         selected = create_batch.select_stories(batch_day, tracker_rows)
-        self.assertEqual(len(selected), 6)
+        titles = [story["title"] for story in selected]
+        self.assertIn("കടൽവെള്ളം കുടിക്കാമോ?", titles)
 
     def test_instagram_slots_use_sunday_monday_wednesday_friday(self):
         now = datetime(2026, 11, 15, 8, 41, tzinfo=IST)
