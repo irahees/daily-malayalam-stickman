@@ -14,12 +14,14 @@ from zoneinfo import ZoneInfo
 API = "https://api.buffer.com"
 PAGE_SIZE = 100
 BATCH_SIZE = 6
-PUBLISH_COUNT = 4
+PUBLISH_COUNT = 6
 MAX_SCHEDULED_POSTS_PER_CHANNEL = 10  # Current Buffer plan limit confirmed by API response
 PUBLISH_WEEKDAYS = {0, 2, 4, 6}  # Monday, Wednesday, Friday, Sunday
 IST = ZoneInfo("Asia/Kolkata")
 ACTIVE_STATUSES = {"draft", "needs_approval", "scheduled", "sending", "sent"}
 VERIFIED_STATUSES = {"scheduled", "sending", "sent"}
+# This exact story was already published on both channels; never queue it again.
+SKIP_TITLES = {"കടൽവെള്ളം കുടിക്കാമോ?"}
 TRACKER_COLUMNS = [
     "batch_date_ist", "video", "platform", "title",
     "scheduled_date_ist", "scheduled_time_ist", "status", "buffer_post_id",
@@ -318,7 +320,11 @@ def main() -> None:
         max(0, MAX_SCHEDULED_POSTS_PER_CHANNEL - count)
         for count in queue_counts.values()
     )
-    publish_videos = videos[:min(PUBLISH_COUNT, available_capacity)]
+    eligible_videos = [
+        video for video in videos
+        if str(stories[video.name].get("title") or "").strip() not in SKIP_TITLES
+    ]
+    publish_videos = eligible_videos[:min(PUBLISH_COUNT, available_capacity)]
     print(
         "Buffer queue capacity: "
         + ", ".join(f"{service}={MAX_SCHEDULED_POSTS_PER_CHANNEL - queue_counts[service]}" for service in selected)
