@@ -1,14 +1,18 @@
 name: Publish approved Malayalam batch
 
 on:
+  workflow_run:
+    workflows: ["Daily Malayalam Video Batch"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       source_run_id:
-        description: "Successful generation run ID whose artifact you reviewed"
+        description: "Successful generation run ID (manual fallback)"
         required: true
         type: string
       approved:
-        description: "Set to true only after reviewing this exact six-video batch"
+        description: "Manual fallback only: confirm scheduling this batch"
         required: true
         type: choice
         options:
@@ -26,14 +30,14 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ inputs.approved == 'true' && inputs.source_run_id != '' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.approved == 'true' && inputs.source_run_id != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
       VIDEO_ARTIFACT_DIR: video-artifact
-      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Verify successful generation run
@@ -52,7 +56,7 @@ jobs:
         with:
           name: malayalam-daily-reels
           path: video-artifact
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ github.event.workflow_run.id || inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify all six videos and their metadata
         shell: bash
@@ -94,7 +98,7 @@ jobs:
             gh release create "$tag" "$RUNNER_TEMP"/media/*.mp4 --title "Approved Malayalam Reels $SOURCE_RUN_ID" --notes "Reviewed and approved Malayalam video batch."
           fi
           echo "BUFFER_VIDEO_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" >> "$GITHUB_ENV"
-      - name: Schedule only the four weekly mirrored slots
+      - name: Schedule the six videos into future mirrored slots
         run: python src/publish_batch_buffer.py
       - name: Persist verified Buffer schedule in the tracking ledger
         run: |
