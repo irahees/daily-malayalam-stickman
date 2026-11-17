@@ -1,11 +1,5 @@
 name: Full 3D Malayalam Example Video
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "requirements.txt"
-      - ".github/workflows/full-3d-example.yml"
   workflow_dispatch:
     inputs:
       story_index:
