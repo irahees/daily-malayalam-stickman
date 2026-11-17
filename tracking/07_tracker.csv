@@ -1,8 +1,8 @@
 batch_date_ist,video,platform,title,scheduled_date_ist,scheduled_time_ist,status,buffer_post_id,views,watch_time_seconds,average_watch_time_seconds,reach,shares,sends,saves,follows,notes
-2026-11-14,01.mp4,instagram,കടൽവെള്ളം കുടിക്കാമോ?,2026-11-15,12:00,scheduled,6af83a6878196a0a9758ef2f,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-14,01.mp4,youtube,കടൽവെള്ളം കുടിക്കാമോ?,2026-11-15,13:00,scheduled,6af83a69d16af15d4d0b4d33,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-14,02.mp4,instagram,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,2026-11-16,19:30,scheduled,6af83a69bb36d0090903bc3a,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-14,02.mp4,youtube,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,2026-11-16,18:30,scheduled,6af83a6ad16af15d4d0b4eea,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
+2026-11-14,01.mp4,instagram,കടൽവെള്ളം കുടിക്കാമോ?,2026-11-15,12:00,sent,6af83a6878196a0a9758ef2f,1266,6600,5.93,1095,0,,0,,Buffer metrics snapshot 2026-11-16 20:21 IST; total watch time reported as 110 minutes.
+2026-11-14,01.mp4,youtube,കടൽവെള്ളം കുടിക്കാമോ?,2026-11-15,13:00,sent,6af83a69d16af15d4d0b4d33,998,,,,,,,,Buffer metrics snapshot 2026-11-16 18:52 IST; views only available in Buffer.
+2026-11-14,02.mp4,instagram,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,2026-11-16,19:30,sent,6af83a69bb36d0090903bc3a,180,468.6,5.27,88,0,,0,,Buffer metrics snapshot 2026-11-16 20:21 IST; total watch time reported as 7.81 minutes.
+2026-11-14,02.mp4,youtube,കേരളത്തിലെ കടകൾ അടച്ചാൽ?,2026-11-16,18:30,sent,6af83a6ad16af15d4d0b4eea,0,,,,,,,,Buffer metrics snapshot 2026-11-16 18:52 IST; views only available in Buffer.
 2026-11-14,03.mp4,instagram,ഒരു രൂപ ഇല്ലാതായാൽ?,2026-11-17,19:30,cancelled,6af83a6bd16af15d4d0b4f45,,,,,,,,,Cancelled to keep the first test week to four posts per platform; not published.
 2026-11-14,03.mp4,youtube,ഒരു രൂപ ഇല്ലാതായാൽ?,2026-11-17,18:30,cancelled,6af83a6bd16af15d4d0b4f6d,,,,,,,,,Cancelled to keep the first test week to four posts per platform; not published.
 2026-11-14,04.mp4,instagram,ഇന്റർനെറ്റ് ഇല്ലാത്ത ഒരു ദിവസം,2026-11-18,19:30,scheduled,6af83a6c4b28296eb14f087f,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
@@ -23,15 +23,15 @@ batch_date_ist,video,platform,title,scheduled_date_ist,scheduled_time_ist,status
 2026-11-15,05.mp4,youtube,ബാറ്ററി പെട്ടെന്ന് തീരുന്നതെന്തിന്?,,,awaiting_approval,,,,,,,,,,
 2026-11-15,06.mp4,instagram,പെട്രോൾ പമ്പുകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
 2026-11-15,06.mp4,youtube,പെട്രോൾ പമ്പുകൾ അടച്ചാൽ?,,,awaiting_approval,,,,,,,,,,
-2026-11-16,01.mp4,instagram,കടൽവെള്ളം കുടിക്കാമോ?,,,awaiting_approval,,,,,,,,,,
-2026-11-16,01.mp4,youtube,കടൽവെള്ളം കുടിക്കാമോ?,,,awaiting_approval,,,,,,,,,,
-2026-11-16,02.mp4,instagram,ആകാശം നീലയാകുന്നത് എന്തിന്?,2026-11-17,19:47,scheduled,6afb20e1e368957de0d032d6,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,02.mp4,youtube,ആകാശം നീലയാകുന്നത് എന്തിന്?,2026-11-19,20:59,scheduled,6afb20e12d89e5b19ced872f,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,03.mp4,instagram,ചന്ദ്രന്റെ രൂപം മാറുന്നത് എന്തിന്?,2026-11-18,18:31,scheduled,6afb20e2e368957de0d0335a,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,03.mp4,youtube,ചന്ദ്രന്റെ രൂപം മാറുന്നത് എന്തിന്?,2026-11-20,18:03,scheduled,6afb20e348b687b0327aa43f,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,04.mp4,instagram,തുമ്മൽ വരുന്നതിന്റെ കാരണം,2026-11-19,10:47,scheduled,6afb20e32d89e5b19ced8925,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,04.mp4,youtube,തുമ്മൽ വരുന്നതിന്റെ കാരണം,2026-11-21,19:43,scheduled,6afb20e4a3641bd0cf6934cd,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,05.mp4,instagram,ഉള്ളി അരിയുമ്പോൾ കണ്ണ് കരയുന്നത്,2026-11-24,19:47,scheduled,6afb20e5407cd7a3e057ba7c,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,05.mp4,youtube,ഉള്ളി അരിയുമ്പോൾ കണ്ണ് കരയുന്നത്,2026-11-26,20:59,scheduled,6afb20e5407cd7a3e057bac5,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,06.mp4,instagram,ബ്രെഡ് പൊങ്ങുന്നതിന്റെ രഹസ്യം,2026-11-25,18:31,scheduled,6afb20e648b687b0327aa5ba,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
-2026-11-16,06.mp4,youtube,ബ്രെഡ് പൊങ്ങുന്നതിന്റെ രഹസ്യം,2026-11-27,18:03,scheduled,6afb20e7e368957de0d03826,,,,,,,,,Buffer post verified; scheduled status is not proof of publication.
+2026-11-16,01.mp4,instagram,കടൽവെള്ളം കുടിക്കാമോ?,,,duplicate_skipped,,,,,,,,,,Same topic was already published in the earlier batch; skipped to prevent a duplicate.
+2026-11-16,01.mp4,youtube,കടൽവെള്ളം കുടിക്കാമോ?,,,duplicate_skipped,,,,,,,,,,Same topic was already published in the earlier batch; skipped to prevent a duplicate.
+2026-11-16,02.mp4,instagram,ആകാശം നീലയാകുന്നത് എന്തിന്?,2026-11-22,12:00,scheduled,6afb20e1e368957de0d032d6,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,02.mp4,youtube,ആകാശം നീലയാകുന്നത് എന്തിന്?,2026-11-22,13:00,scheduled,6afb20e12d89e5b19ced872f,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,03.mp4,instagram,ചന്ദ്രന്റെ രൂപം മാറുന്നത് എന്തിന്?,2026-11-23,19:30,scheduled,6afb20e2e368957de0d0335a,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,03.mp4,youtube,ചന്ദ്രന്റെ രൂപം മാറുന്നത് എന്തിന്?,2026-11-23,18:30,scheduled,6afb20e348b687b0327aa43f,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,04.mp4,instagram,തുമ്മൽ വരുന്നതിന്റെ കാരണം,2026-11-25,19:30,scheduled,6afb20e32d89e5b19ced8925,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,04.mp4,youtube,തുമ്മൽ വരുന്നതിന്റെ കാരണം,2026-11-25,18:30,scheduled,6afb20e4a3641bd0cf6934cd,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,05.mp4,instagram,ഉള്ളി അരിയുമ്പോൾ കണ്ണ് കരയുന്നത്,2026-11-27,19:30,scheduled,6afb20e5407cd7a3e057ba7c,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,05.mp4,youtube,ഉള്ളി അരിയുമ്പോൾ കണ്ണ് കരയുന്നത്,2026-11-27,18:30,scheduled,6afb20e5407cd7a3e057bac5,,,,,,,,,Buffer verified at exact IST test slot; scheduled is not proof of publication.
+2026-11-16,06.mp4,instagram,ബ്രെഡ് പൊങ്ങുന്നതിന്റെ രഹസ്യം,,,draft,6afb20e648b687b0327aa5ba,,,,,,,,,Held in Buffer drafts as reserve to keep the two-week test at four posts per platform; not published.
+2026-11-16,06.mp4,youtube,ബ്രെഡ് പൊങ്ങുന്നതിന്റെ രഹസ്യം,,,draft,6afb20e7e368957de0d03826,,,,,,,,,Held in Buffer drafts as reserve to keep the two-week test at four posts per platform; not published.
