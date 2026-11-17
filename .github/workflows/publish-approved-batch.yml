@@ -1,18 +1,14 @@
 name: Publish approved Malayalam batch
 
 on:
-  workflow_run:
-    workflows: ["Daily Malayalam Video Batch"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       source_run_id:
-        description: "Successful generation run ID (manual fallback)"
+        description: "Successful generation run ID for the exact batch you reviewed"
         required: true
         type: string
       approved:
-        description: "Manual fallback only: confirm scheduling this batch"
+        description: "Set to true only after reviewing this exact six-video batch"
         required: true
         type: choice
         options:
@@ -25,19 +21,19 @@ permissions:
   actions: read
 
 concurrency:
-  group: publish-approved-malayalam-batch
+  group: approved-malayalam-batch-publishing
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.approved == 'true' && inputs.source_run_id != '') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.approved == 'true' && inputs.source_run_id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
       VIDEO_ARTIFACT_DIR: video-artifact
-      SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Verify successful generation run
@@ -56,7 +52,7 @@ jobs:
         with:
           name: malayalam-daily-reels
           path: video-artifact
-          run-id: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify all six videos and their metadata
         shell: bash
