@@ -76,6 +76,36 @@ class DailyBatchTests(unittest.TestCase):
             [(6, "13:00"), (0, "18:30"), (2, "18:30"), (4, "18:30")],
         )
 
+    def test_next_five_slots_follow_exact_ist_test_times_and_avoid_existing_days(self):
+        now = datetime(2026, 11, 17, 8, 25, tzinfo=IST)
+        existing = [
+            {"status": "scheduled", "dueAt": "2026-11-18T13:00:00Z"},
+            {"status": "scheduled", "dueAt": "2026-11-20T13:00:00Z"},
+            {"status": "sent", "dueAt": "2026-11-16T13:00:00Z"},
+        ]
+        instagram = publish_batch_buffer.next_slots("instagram", now, 5, existing)
+        youtube = publish_batch_buffer.next_slots("youtube", now, 5, existing)
+        self.assertEqual(
+            [(slot.date().isoformat(), slot.strftime("%H:%M")) for slot in instagram],
+            [
+                ("2026-11-22", "12:00"),
+                ("2026-11-23", "19:30"),
+                ("2026-11-25", "19:30"),
+                ("2026-11-27", "19:30"),
+                ("2026-11-29", "12:00"),
+            ],
+        )
+        self.assertEqual(
+            [(slot.date().isoformat(), slot.strftime("%H:%M")) for slot in youtube],
+            [
+                ("2026-11-22", "13:00"),
+                ("2026-11-23", "18:30"),
+                ("2026-11-25", "18:30"),
+                ("2026-11-27", "18:30"),
+                ("2026-11-29", "13:00"),
+            ],
+        )
+
     def test_existing_post_blocks_the_whole_day(self):
         now = datetime(2026, 11, 15, 8, 41, tzinfo=IST)
         existing = [{
