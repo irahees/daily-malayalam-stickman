@@ -1,27 +1,38 @@
 name: Schedule existing Malayalam batch through Buffer queue
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/schedule-existing-batch.yml"
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful generation run ID for the exact batch you reviewed"
+        required: true
+        type: string
+      approved:
+        description: "Set to true only after reviewing this exact six-video batch"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
 
 permissions:
   contents: write
   actions: read
 
 concurrency:
-  group: schedule-existing-malayalam-batch-43787417002
+  group: approved-malayalam-batch-publishing
   cancel-in-progress: false
 
 jobs:
   schedule:
+    if: ${{ inputs.approved == 'true' && inputs.source_run_id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_ORGANIZATION_ID: ${{ secrets.BUFFER_ORGANIZATION_ID }}
-      SOURCE_RUN_ID: "43787417002"
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
       VIDEO_ARTIFACT_DIR: video-artifact
     steps:
       - uses: actions/checkout@v4
@@ -32,12 +43,12 @@ jobs:
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq 'select(.conclusion == "success" and .path == ".github/workflows/weekly-bulk-reels.yml") | .id' | grep -Fx "$SOURCE_RUN_ID"
           test -n "$BUFFER_API_KEY"
-      - name: Download the existing six-video artifact
+      - name: Download the selected approved six-video artifact
         uses: actions/download-artifact@v4
         with:
           name: malayalam-daily-reels
           path: video-artifact
-          run-id: 43787417002
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify the batch
         run: |
