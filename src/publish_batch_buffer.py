@@ -153,7 +153,7 @@ def asset_urls(post: dict) -> set[str]:
     }
 
 
-def create_post(key: str, channel: dict, video_url: str, title: str, caption: str, service: str) -> dict:
+def create_post(key: str, channel: dict, video_url: str, title: str, caption: str, service: str, due_at: datetime) -> dict:
     if service == "instagram":
         metadata = {
             "instagram": {
@@ -187,7 +187,8 @@ def create_post(key: str, channel: dict, video_url: str, title: str, caption: st
         "text": caption,
         "channelId": channel["id"],
         "schedulingType": "automatic",
-        "mode": "addToQueue",
+        "mode": "customScheduled",
+        "dueAt": as_utc_iso(due_at),
         "assets": [{
             "video": {
                 "url": video_url,
@@ -331,7 +332,18 @@ def main() -> None:
     )
 
     now = datetime.now(IST)
-    # Use Buffer queue slots so each channel follows its saved/recommended Posting Schedule.
+    # Reserve exact user-approved IST slots; existing posts block the entire date.
+    slots_by_service: dict[str, dict[str, datetime]] = {}
+    for service in selected:
+        new_videos = [
+            video for video in publish_videos
+            if f"{base}/{video.name}" not in existing_by_url[service]
+        ]
+        planned_slots = next_slots(service, now, len(new_videos), existing[service])
+        slots_by_service[service] = {
+            video.name: slot for video, slot in zip(new_videos, planned_slots)
+        }
+
     outcomes: list[dict] = []
     newly_created: list[dict] = []
     already_present: list[dict] = []
@@ -363,7 +375,10 @@ def main() -> None:
                 caption = str(story.get("instagram_caption") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Reels")
             else:
                 caption = str(story.get("youtube_description") or f"{story.get('hook', title)}\n\n{title}\n\n{tags} #Shorts")
-            post = create_post(key, selected[service], video_url, title, caption, service)
+            post = create_post(
+                key, selected[service], video_url, title, caption, service,
+                slots_by_service[service][video.name],
+            )
             outcome = {
                 "service": service,
                 "video": video.name,
@@ -374,7 +389,11 @@ def main() -> None:
             }
             newly_created.append(outcome)
             outcomes.append(outcome)
-            print(f"CREATED {service} {video.name} | {post['id']} | {outcome['status']} | {outcome['due_at']}")
+            print(
+                f"CREATED {service} {video.name} | {post['id']} | "
+                f"{outcome['status']} | {outcome['due_at']} "
+                f"(custom IST slot {slots_by_service[service][video.name].isoformat()})"
+            )
 
     verified_posts: dict[str, dict[str, dict]] = {}
     for attempt in range(3):
