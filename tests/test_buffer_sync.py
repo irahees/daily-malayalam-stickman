@@ -1,6 +1,9 @@
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -56,6 +59,35 @@ class BufferSyncTests(unittest.TestCase):
         self.assertEqual(details[0]["best_candidates"][0]["candidate_post_id"], "ig-2")
         self.assertFalse(details[0]["best_candidates"][0]["same_media_url"])
         self.assertLess(details[0]["best_candidates"][0]["score"], 0.78)
+
+    def test_create_post_uses_exact_custom_scheduled_slot(self):
+        slot = datetime(2026, 11, 22, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        captured = {}
+
+        def fake_graphql(key, query, variables=None):
+            captured["variables"] = variables
+            return {"createPost": {"post": {
+                "id": "post-1",
+                "status": "scheduled",
+                "dueAt": "2026-11-22T06:30:00.000Z",
+                "channelId": "channel-1",
+            }}}
+
+        with patch.object(publish_batch_buffer, "graphql", side_effect=fake_graphql):
+            result = publish_batch_buffer.create_post(
+                "test-token",
+                {"id": "channel-1"},
+                "https://cdn.example/video.mp4",
+                "Malayalam title",
+                "Malayalam caption",
+                "instagram",
+                slot,
+            )
+
+        self.assertEqual(result["id"], "post-1")
+        payload = captured["variables"]["input"]
+        self.assertEqual(payload["mode"], "customScheduled")
+        self.assertEqual(payload["dueAt"], "2026-11-22T06:30:00.000Z")
 
     def test_pending_and_sent_statuses_are_buffer_native(self):
         self.assertEqual(
