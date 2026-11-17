@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -87,6 +87,40 @@ def write_tracker(rows: list[dict]) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
+def select_stories(batch_day: date, tracker_rows: list[dict]) -> list[dict]:
+    """Select six stories without repeating any title from the previous six days."""
+    recent_titles: set[str] = set()
+    recent_start_ordinal = batch_day.toordinal() - 6
+    for row in tracker_rows:
+        title = str(row.get("title", "")).strip()
+        recorded_date = str(row.get("batch_date_ist", "")).strip()
+        if not title or not recorded_date:
+            continue
+        try:
+            recorded_day = date.fromisoformat(recorded_date)
+        except ValueError:
+            continue
+        if recent_start_ordinal <= recorded_day.toordinal() < batch_day.toordinal():
+            recent_titles.add(title)
+
+    start = (batch_day.toordinal() * BATCH_SIZE) % len(STORIES)
+    selected: list[dict] = []
+    selected_titles: set[str] = set()
+    for offset in range(len(STORIES)):
+        story = STORIES[(start + offset) % len(STORIES)]
+        title = str(story.get("title", "")).strip()
+        if not title or title in recent_titles or title in selected_titles:
+            continue
+        selected.append(story)
+        selected_titles.add(title)
+        if len(selected) == BATCH_SIZE:
+            return selected
+
+    raise RuntimeError(
+        f"Only {len(selected)} unused stories remain after the six-day duplicate check; "
+        "refusing to generate repeated videos."
+    )
+
 
 def main() -> None:
     if len(STORIES) < BATCH_SIZE or len(STORIES) % BATCH_SIZE != 0:
@@ -97,15 +131,8 @@ def main() -> None:
     if len({str(story.get("title", "")).strip() for story in STORIES}) != len(STORIES):
         raise RuntimeError("The story bank contains duplicate titles; refusing to generate a repetitive batch.")
     now_ist = datetime.now(IST)
-    batch_date = now_ist.date().isoformat()
-    start = (now_ist.date().toordinal() * BATCH_SIZE) % len(STORIES)
-    selected_stories = [STORIES[(start + offset) % len(STORIES)] for offset in range(BATCH_SIZE)]
-    if len({str(story["title"]).strip() for story in selected_stories}) != BATCH_SIZE:
-        raise RuntimeError("The selected daily batch contains duplicate story titles.")
-
-    BATCH.mkdir(parents=True, exist_ok=True)
-    for old in BATCH.iterdir():
-        shutil.rmtree(old) if old.is_dir() else old.unlink()
+    batch_day = now_ist.date()
+    batch_date = batch_day.isoformat()
 
     tracker_rows = read_tracker()
     if any(row.get("batch_date_ist") == batch_date for row in tracker_rows):
@@ -113,6 +140,12 @@ def main() -> None:
             f"A batch for {batch_date} IST is already recorded; reuse its existing artifact "
             "instead of regenerating the same day's videos."
         )
+
+    selected_stories = select_stories(batch_day, tracker_rows)
+
+    BATCH.mkdir(parents=True, exist_ok=True)
+    for old in BATCH.iterdir():
+        shutil.rmtree(old) if old.is_dir() else old.unlink()
     known_rows = {
         (row.get("batch_date_ist"), row.get("video"), row.get("platform"))
         for row in tracker_rows
