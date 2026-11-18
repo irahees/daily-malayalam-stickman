@@ -17,14 +17,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      SARVAM_API_KEY: \${{ secrets.SARVAM_API_KEY }}
+      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
       SARVAM_TTS_SPEAKER: shubh
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
       - name: Prevent duplicate generation on the same UTC/IST date
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           for f in output/batch/*.mp4; do
-            tmp="\${f%.mp4}.normalized.mp4"
+            tmp="${f%.mp4}.normalized.mp4"
             ffmpeg -hide_banner -loglevel error -y -i "$f" -map 0:v:0 -map '0:a?' \
               -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p" \
               -c:v libx264 -preset veryfast -crf 20 -r 30 -fps_mode cfr \
@@ -71,7 +71,7 @@ jobs:
           test -s output/batch/07_tracker.csv
           for f in output/batch/*.mp4; do
             test -s "$f"
-            test -s "\${f%.mp4}.json"
+            test -s "${f%.mp4}.json"
             ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" | grep -Eq '^[0-9]+([.][0-9]+)?$'
             probe="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of default=noprint_wrappers=1 "$f")"
             grep -Fxq 'width=1080' <<<"$probe"
