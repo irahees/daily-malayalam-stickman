@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"output"
 RAW=OUT/"blender_raw_frames"
 FINAL_FRAMES=OUT/"blender_final_frames"
-FPS=24
+FPS=30
 WIDTH,HEIGHT=540,960
 
 def main():
@@ -51,9 +51,9 @@ def main():
         for title_row in title_rows[:2]:
             draw_text(draw,(32,title_y),title_row,font=title_font,fill=(255,255,255),stroke_width=1,stroke_fill=(17,27,43))
             title_y+=27
-        draw.rounded_rectangle((18,790,522,940),radius=18,fill=(15,24,37),outline=(255,202,82),width=3)
+        draw.rounded_rectangle((18,735,522,900),radius=18,fill=(15,24,37),outline=(255,202,82),width=3)
         rows=wrap_text(draw,scenes[scene_index],body_font,450)
-        y=815
+        y=755
         for row in rows[:3]:
             draw_text(draw,(38,y),row,font=body_font,fill=(255,255,255),stroke_width=1,stroke_fill=(10,15,23))
             y+=34
@@ -65,7 +65,7 @@ def main():
     subprocess.run([
         "ffmpeg","-y","-framerate",str(FPS),"-i",str(FINAL_FRAMES/"frame_%06d.jpg"),"-i",str(normalized_audio),
         "-map","0:v:0","-map","1:a:0","-vf","scale=1080:1920:flags=lanczos,setsar=1",
-        "-c:v","libx264","-preset","medium","-crf","20","-r","24","-fps_mode","cfr",
+        "-c:v","libx264","-preset","medium","-crf","20","-r","30","-fps_mode","cfr",
         "-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-shortest","-movflags","+faststart",str(output)
     ],check=True)
     probe=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_type,width,height","-show_entries","format=duration","-of","json",str(output)],check=True,capture_output=True,text=True)
