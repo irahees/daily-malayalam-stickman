@@ -72,11 +72,9 @@ jobs:
           for f in output/batch/*.mp4; do
             test -s "$f"
             test -s "${f%.mp4}.json"
-            ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" | grep -Eq '^[0-9]+([.][0-9]+)?$'
-            probe="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of default=noprint_wrappers=1 "$f")"
-            grep -Fxq 'width=1080' <<<"$probe"
-            grep -Fxq 'height=1920' <<<"$probe"
-            grep -Fxq 'avg_frame_rate=30/1' <<<"$probe"
+            probe_json="$(ffprobe -v error -show_entries stream=codec_type,codec_name,width,height,avg_frame_rate,pix_fmt,sample_rate -show_entries format=duration -of json "$f")"
+            python -c 'import json,sys; d=json.loads(sys.argv[1]); v=next((s for s in d["streams"] if s.get("codec_type")=="video"),{}); a=next((s for s in d["streams"] if s.get("codec_type")=="audio"),None); duration=float(d["format"]["duration"]); assert v.get("codec_name")=="h264" and v.get("width")==1080 and v.get("height")==1920 and v.get("avg_frame_rate")=="30/1" and v.get("pix_fmt")=="yuv420p", f"Invalid vertical video stream: {v}"; assert a and a.get("codec_name")=="aac" and a.get("sample_rate")=="48000", f"Missing/invalid narration audio stream: {a}"; assert 18 <= duration <= 60, f"Unexpected Short duration: {duration}"; print(f"Validated {duration:.2f}s H.264/AAC 1080x1920@30fps")' "$probe_json"
+            python -c 'import json,sys; d=json.load(open(sys.argv[1],encoding="utf-8")); scenes=d.get("scenes",[]); assert len(scenes)==6 and all(isinstance(s,str) and s.strip() for s in scenes), f"Expected six non-empty Malayalam scenes in {sys.argv[1]}"; print("Validated six story scenes:", d.get("title",""))' "${f%.mp4}.json"
           done
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,25 @@
+name: Blender 3D Scene Validation
+on:
+  pull_request:
+    paths:
+      - "src/blender_full_renderer.py"
+      - "src/create_video_3d.py"
+      - "tests/test_blender_scene_routing.py"
+      - ".github/workflows/blender-3d-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python source without importing Blender or using paid services
+        run: python -m py_compile src/blender_full_renderer.py src/create_video_3d.py src/create_batch.py
+      - name: Test story-to-3D scene routing and output contract
+        run: python -m unittest discover -s tests -v
