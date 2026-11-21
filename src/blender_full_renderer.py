@@ -210,6 +210,92 @@ def build_gold(m, variant):
     if variant%2:
         cube("bank desk",(0,2,.8),(4,1,.3),m["wood"])
 
+
+def build_seed(m, variant):
+    cube("garden soil",(0,0,-.25),(17,15,.7),m["wood"])
+    cube("garden lawn",(0,-2,.15),(17,8,.25),m["grass"])
+    sphere("seed",(0,-.7,.62),(.42,.25,.24),m["wood"])
+    if variant >= 1:
+        cylinder("seedling stem",(0,-.7,1.25+variant*.12),.075,1.15+variant*.22,m["green"])
+        for side in (-1,1):
+            leaf=sphere("seedling leaf",(side*(.38+variant*.08),-.7,1.45+variant*.16),(.48,.16,.13),m["green"]); leaf.rotation_euler[1]=side*.42
+    if variant >= 2:
+        for side in (-1,1):
+            root=cylinder("growing root",(side*.28,-.7,.20),.035,.9,m["wood"]); root.rotation_euler[1]=side*.5
+    for x in (-5,5): cylinder("garden fence post",(x,1.8,1.0),.09,2,m["wood"])
+
+def build_cat(m, variant):
+    cube("cat home floor",(0,0,-.3),(16,15,.5),m["concrete"])
+    cube("cat home wall",(0,4,2.8),(13,.25,5.6),m["yellow"])
+    cube("cat sofa",(0,1,.85),(5,1.5,1.5),m["blue"],.18)
+    sphere("cat torso",(0,-1.1,.82),(.95,.43,.5),m["orange"])
+    sphere("cat head",(0,-1.35,1.55),(.52,.43,.48),m["orange"])
+    for side in (-1,1):
+        ear=sphere("cat ear",(side*.34,-1.34,1.93),(.19,.16,.28),m["orange"]); ear.rotation_euler[1]=side*-.28
+        sphere("cat eye",(side*.19,-1.75,1.61),(.075,.035,.10),m["dark"])
+        sphere("cat paw",(side*.55,-1.12,.32),(.22,.23,.16),m["orange"])
+        sphere("cat hind paw",(side*.75,-.8,.32),(.23,.24,.16),m["orange"])
+    sphere("cat muzzle",(0,-1.75,1.38),(.22,.10,.15),m["yellow"])
+    sphere("cat nose",(0,-1.85,1.45),(.07,.04,.055),m["red"])
+    tail=cylinder("cat tail",(1,-.95,1.22),.09,.9,m["orange"]); tail.rotation_euler[1]=1 if variant%2==0 else -1
+    if variant%2==0: cylinder("cat food bowl",(2.2,-1,.18),.42,.12,m["white"])
+
+def build_dog(m, variant):
+    cube("dog yard",(0,0,-.3),(18,17,.5),m["grass"])
+    cube("dog house wall",(0,4,2.1),(12,.25,4.2),m["concrete"])
+    sphere("dog body",(0,-1,.9),(1.05,.48,.56),m["orange"])
+    sphere("dog head",(.85,-1.05,1.55),(.53,.45,.52),m["orange"])
+    for side in (-1,1):
+        ear=sphere("dog floppy ear",(.85+side*.39,-1.05,1.65),(.18,.22,.42),m["wood"]); ear.rotation_euler[1]=side*.32
+        sphere("dog eye",(.85+side*.19,-1.46,1.68),(.07,.035,.09),m["dark"])
+        cylinder("dog leg",(side*.62,-1,.43),.13,.75,m["orange"])
+        sphere("dog paw",(side*.62,-1.05,.12),(.23,.28,.13),m["orange"])
+    sphere("dog muzzle",(1.18,-1.45,1.38),(.27,.22,.19),m["yellow"])
+    sphere("dog nose",(1.25,-1.65,1.48),(.10,.07,.08),m["dark"])
+    tail=cylinder("dog wagging tail",(-1.05,-.9,1.25),.10,.8,m["orange"]); tail.rotation_euler[1]=-.8
+    if variant%2==0: cylinder("dog water bowl",(2,-1,.16),.48,.16,m["blue"])
+    else: sphere("dog ball",(2,-1,.32),(.28,.28,.28),m["red"])
+
+def build_fish(m, variant):
+    cube("aquarium water",(0,1,2.2),(15,9,5.2),m["blue"])
+    cube("aquarium gravel",(0,-.2,-.25),(15,9,.5),m["wood"])
+    for x in (-5,-3,3,5):
+        cylinder("aquatic plant stem",(x,-1,.9),.055,2,m["green"])
+        for z in (.6,1.1,1.6): sphere("aquatic plant leaf",(x+.35,-1,z),(.42,.12,.14),m["green"])
+    sphere("fish body",(0,-2.2,2.1),(1.45,.38,.72),m["orange"])
+    tail=sphere("fish tail fin",(-1.45,-2.2,2.1),(.55,.12,.62),m["yellow"]); tail.rotation_euler[1]=.5
+    for side in (-1,1): sphere("fish side fin",(.1,-2.2+side*.25,1.75),(.55,.12,.25),m["yellow"])
+    sphere("fish eye",(.95,-2.58,2.28),(.13,.07,.14),m["white"])
+    sphere("fish pupil",(1,-2.64,2.28),(.06,.035,.07),m["dark"])
+    for k in range(5): sphere("oxygen bubble",(2.1+(k%2)*.45,-2,1.1+k*.55),(.10,.10,.10),m["white"])
+    if variant%2: cube("aquarium filter",(5,-2,1),(.55,.6,1.7),m["dark"])
+
+def build_ice(m, variant):
+    cube("cold kitchen",(0,0,-.3),(16,14,.5),m["concrete"])
+    cube("kitchen wall",(0,4,2.8),(12,.25,5.6),m["blue"])
+    cylinder("drinking glass",(0,-.6,1.2),.68,1.8,m["glass"])
+    cylinder("water in glass",(0,-.6,.95),.58,1,m["blue"])
+    for x,z in ((-.24,1.7),(.18,1.8),(0,1.95)):
+        ice=cube("floating ice cube",(x,-.6,z),(.42,.42,.42),m["white"],.06); ice.rotation_euler[1]=.25
+    if variant in (1,2,3):
+        cube("ice tray",(3,-.4,.35),(3,1.5,.25),m["dark"],.08)
+        for x in (2,2.65,3.3,3.95): cube("ice tray cube",(x,-.4,.58),(.48,.48,.38),m["glass"],.04)
+    if variant in (3,4): cube("lake surface",(0,2,.15),(13,3,.12),m["blue"])
+
+def build_rainbow(m, variant):
+    cube("rainbow landscape",(0,0,-.35),(18,18,.6),m["grass"])
+    sphere("rain cloud left",(-3,2,6),(1.5,.8,.7),m["white"])
+    sphere("rain cloud right",(3,2,6),(1.5,.8,.7),m["white"])
+    sphere("sun",(5,-1,6.1),(.8,.8,.8),m["yellow"])
+    rainbow_mats=[m["red"],m["orange"],m["yellow"],m["green"],m["blue"],m["white"],m["gold"]]
+    for j,rm in enumerate(rainbow_mats):
+        curve=bpy.data.curves.new("rainbow arc","CURVE"); curve.dimensions="3D"; curve.bevel_depth=.10; curve.bevel_resolution=3
+        spline=curve.splines.new("POLY"); pts=33; spline.points.add(pts-1); radius=4-j*.20
+        for k in range(pts):
+            a=math.pi*k/(pts-1); spline.points[k].co=(radius*math.cos(a),-1.5,2.1+radius*math.sin(a),1)
+        obj=bpy.data.objects.new("rainbow colour band",curve); bpy.context.collection.objects.link(obj); obj.data.materials.append(rm)
+    for k in range(12): cylinder("rain drop",(-4+(k%6)*1.4,-.8,3.7-(k//6)*.45),.035,.4,m["glass"])
+
 def build_general(m, variant):
     cube("ground",(0,0,-.35),(18,18,.6),m["grass"])
     cube("home",(0,3,1.7),(7,2,3.4),m["concrete"],.08)
@@ -247,7 +333,7 @@ def make_presenter(m):
 
 def render_scene(scene_index, line, title, frames, first_frame, category):
     clear_scene(); m=make_materials(); setup_world()
-    builders={"fuel":build_fuel,"shop":build_shop,"phone":build_phone,"rain":build_rain,"gold":build_gold,"general":build_general}
+    builders={"fuel":build_fuel,"shop":build_shop,"phone":build_phone,"rain":build_rain,"gold":build_gold,"seed":build_seed,"cat":build_cat,"dog":build_dog,"fish":build_fish,"ice":build_ice,"rainbow":build_rainbow,"general":build_general}
     builder=builders.get(category,build_general)
     extras=builder(m,scene_index) if category=="fuel" else builder(m,scene_index)
     root=make_presenter(m)
@@ -285,6 +371,17 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
         root.rotation_euler.z=.08*math.sin(phase)
         root.keyframe_insert(data_path="location",frame=f)
         root.keyframe_insert(data_path="rotation_euler",frame=f)
+        # Independent arm and leg keyframes add visible gestures beyond body sway.
+        for obj in bpy.data.objects:
+            if obj.name.startswith("animated arm"):
+                side=-1 if obj.location.x < 0 else 1
+                obj.rotation_euler.y=side*(.28*math.sin(phase*1.4 + (0 if side<0 else math.pi)))
+                obj.rotation_euler.x=.12*math.cos(phase*1.4)
+                obj.keyframe_insert(data_path="rotation_euler",frame=f)
+            elif obj.name.startswith("leg"):
+                side=-1 if obj.location.x < 0 else 1
+                obj.rotation_euler.y=side*.10*math.sin(phase*1.2)
+                obj.keyframe_insert(data_path="rotation_euler",frame=f)
     scene.render.filepath=os.path.join(FRAME_DIR,"frame_%06d.png")
     for local in range(1,frames+1):
         scene.frame_set(local)
@@ -294,6 +391,13 @@ def render_scene(scene_index, line, title, frames, first_frame, category):
 
 def category_for(text):
     t=text.lower()
+    # Match concrete subjects before broad terms such as water, rain or money.
+    if any(x in t for x in ("പൂച്ച","പൂച്ചയുടെ","മ്യാവൂ","cat","kitten")): return "cat"
+    if any(x in t for x in ("നായ","നായയുടെ","വാലാട്ട","dog","puppy")): return "dog"
+    if any(x in t for x in ("മത്സ്യം","മത്സ്യ","മീൻ","ചെകിള","fish","gill","aquarium")): return "fish"
+    if any(x in t for x in ("വിത്ത്","മുള","ചെടി","വളർച്ച","seed","sprout","plant","കൃഷി")): return "seed"
+    if any(x in t for x in ("ഐസ്","മഞ്ഞ്","മഞ്ഞാക","സാന്ദ്രത","ice","frozen","freeze")): return "ice"
+    if any(x in t for x in ("മഴവില്ല്","ഏഴ് നിറ","rainbow","പ്രകാശം നിറ","വെളിച്ചം നിറ")): return "rainbow"
     if any(x in t for x in ("പെട്രോൾ","ഇന്ധന","വാഹന","fuel","petrol")): return "fuel"
     if any(x in t for x in ("സ്വർണ്ണ","സ്വർണം","പവൻ","ആഭരണം","gold")): return "gold"
     if any(x in t for x in ("ഫോൺ","ബാറ്ററി","ചാർജ്","മൊബൈൽ","ഇന്റർനെറ്റ്","നെറ്റ്വർക്ക്","ഓൺലൈൻ","battery","internet")): return "phone"
