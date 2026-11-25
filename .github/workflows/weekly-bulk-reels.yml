@@ -17,8 +17,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
-      SARVAM_TTS_SPEAKER: shubh
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -47,8 +45,6 @@ jobs:
         run: pip install --no-binary=Pillow -r requirements.txt
       - name: Verify Malayalam shaping support
         run: python -c "from PIL import features; assert features.check('raqm'), 'Pillow RAQM shaping support is required for Malayalam'; print('RAQM shaping enabled')"
-      - name: Validate Sarvam key
-        run: test -n "$SARVAM_API_KEY"
       - name: Generate six distinct videos and append the growth tracker
         run: python src/create_batch.py
       - name: Normalize six videos to 1080x1920 at 30 FPS before storage
