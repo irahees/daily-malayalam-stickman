@@ -12,9 +12,10 @@ WIDTH,HEIGHT=540,960
 
 def main():
     import create_video
+    from tts_edge import create_voice
     title,scenes=create_video.generate_story()
     audio=OUT/"narration.wav"
-    create_video.create_voice("\n\n".join(scenes),audio)
+    create_voice("\n\n".join(scenes),audio)
     duration=create_video.probe_duration(audio)
     weights=[max(len(s.split()),1) for s in scenes]
     total=sum(weights)
