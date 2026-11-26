@@ -1,0 +1,45 @@
+name: 2D Animation Sample Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/2d-animation-sample
+
+      - name: Install FFmpeg and Malayalam fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Pillow
+        run: python -m pip install "Pillow>=10.4,<13"
+
+      - name: Render silent 2D sample
+        run: python src/create_animation_preview.py
+
+      - name: Verify preview
+        run: |
+          test -s preview_output/animation_sample_2d.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of default=noprint_wrappers=1 preview_output/animation_sample_2d.mp4
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2d-animation-sample-preview
+          path: preview_output/animation_sample_2d.mp4
+          retention-days: 7
